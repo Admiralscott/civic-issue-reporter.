@@ -7,7 +7,6 @@ import {
   Building2,
   Users,
   CheckCircle2,
-  Monitor,
   TrendingUp,
   ChevronRight,
   Minus,
@@ -128,7 +127,7 @@ export default function GovDashboardTemplate({
               <p className="text-4xl font-extrabold tracking-tight">{metrics.activeDepartments}</p>
               <p className="text-xs font-semibold uppercase tracking-wider mt-1 opacity-90">Active Departments</p>
             </div>
-            <Monitor className="w-14 h-14 opacity-20 absolute right-3 top-3" />
+            <Building2 className="w-14 h-14 opacity-20 absolute right-3 top-3" />
           </div>
           <Link
             href="/departments"
