@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   TrendingUp,
   ChevronRight,
-  Minus,
   X,
   ExternalLink,
   MapPin,
