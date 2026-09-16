@@ -6,8 +6,7 @@ import StatusBadge from '@/components/shared/StatusBadge'
 import { formatDistanceToNow, format } from '@/lib/utils/date'
 import {
   Building2,
-  ChevronDown,
-  ChevronUp,
+  ChevronRight,
   FileText,
   Clock,
   MapPin,
@@ -131,7 +130,7 @@ export default function DepartmentManager({
                     </div>
                   </div>
                   <div className="p-2 text-gray-400 hover:text-purple-600 rounded-lg">
-                    {isDeptExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                    <ChevronRight className={`w-5 h-5 transition-transform duration-200 ${isDeptExpanded ? 'rotate-90 text-purple-600' : 'text-gray-400'}`} />
                   </div>
                 </div>
               </div>
@@ -198,11 +197,7 @@ export default function DepartmentManager({
                                   {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
                                 </span>
                                 <div className="p-1 text-gray-400">
-                                  {isReportExpanded ? (
-                                    <ChevronUp className="w-4 h-4" />
-                                  ) : (
-                                    <ChevronDown className="w-4 h-4" />
-                                  )}
+                                  <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isReportExpanded ? 'rotate-90 text-purple-600' : 'text-gray-400'}`} />
                                 </div>
                               </div>
                             </div>
