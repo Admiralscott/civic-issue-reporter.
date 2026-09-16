@@ -12,7 +12,6 @@ import {
   MapPin,
   TrendingUp,
   CheckCircle2,
-  AlertCircle,
   Tag,
   Mail,
   User,
