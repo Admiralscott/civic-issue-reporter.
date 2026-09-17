@@ -46,36 +46,35 @@ export default function StatusUpdateModal({
 
       let resPhotoUrl: string | null = null
       if (resPhoto && newStatus === 'resolved') {
-        const path = `resolution/${reportId}/${Date.now()}.${resPhoto.name.split('.').pop()}`
-        await supabase.storage.from('report-photos').upload(path, resPhoto)
+        const extension = resPhoto.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+        const safeExtension = /^[a-z0-9]{1,5}$/.test(extension) ? extension : 'jpg'
+        const path = `resolution/${reportId}/${crypto.randomUUID()}.${safeExtension}`
+        const { error: uploadError } = await supabase.storage.from('report-photos').upload(path, resPhoto, {
+          contentType: resPhoto.type,
+          upsert: false,
+        })
+        if (uploadError) throw uploadError
         const { data: { publicUrl } } = supabase.storage.from('report-photos').getPublicUrl(path)
         resPhotoUrl = publicUrl
       }
 
-      const { error: updateErr } = await supabase
-        .from('reports')
-        .update({
+      const response = await fetch(`/api/reports/${encodeURIComponent(reportId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           status: newStatus,
           ...(resPhotoUrl && { resolution_photo_url: resPhotoUrl }),
-          ...(newStatus === 'resolved' && { resolved_at: new Date().toISOString() }),
-        })
-        .eq('id', reportId)
-
-      if (updateErr) throw updateErr
-
-      await supabase.from('status_history').insert({
-        report_id: reportId,
-        changed_by: user.id,
-        new_status: newStatus,
-        note: note || null,
+          _note: note.trim() || null,
+        }),
       })
 
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(result?.error ?? 'Failed to update status')
+
       setSuccess(true)
-      setTimeout(() => {
-        router.refresh()
-      }, 500)
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to update status')
+      setTimeout(() => router.refresh(), 500)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update status')
     } finally {
       setLoading(false)
     }
@@ -98,11 +97,7 @@ export default function StatusUpdateModal({
         <div className="flex flex-wrap gap-2">
           {options.map((opt) => (
             <button key={opt.value} type="button" onClick={() => setNewStatus(opt.value)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                newStatus === opt.value
-                  ? 'bg-orange-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}>
+              className={`px-3 py-2 rounded-xl text-xs font-semibold transition ${newStatus === opt.value ? 'bg-orange-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
               {opt.label}
             </button>
           ))}
@@ -111,7 +106,7 @@ export default function StatusUpdateModal({
 
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Internal Note (Optional)</label>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={2000}
           placeholder="e.g. Dispatched Repair Crew 4 to site..."
           className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none resize-none" />
       </div>
@@ -122,7 +117,11 @@ export default function StatusUpdateModal({
           <label className="flex items-center justify-center gap-2 w-full px-3 py-2 border border-dashed border-gray-300 rounded-xl text-xs text-gray-500 cursor-pointer hover:border-orange-500">
             <Camera className="w-4 h-4 text-gray-400" />
             {resPhoto ? resPhoto.name : 'Upload proof photo'}
-            <input type="file" accept="image/*" onChange={(e) => setResPhoto(e.target.files?.[0] ?? null)} className="hidden" />
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => {
+              const file = e.target.files?.[0] ?? null
+              setResPhoto(file && file.size <= 10 * 1024 * 1024 ? file : null)
+              if (file && file.size > 10 * 1024 * 1024) setError('Resolution photo must be 10 MB or smaller')
+            }} className="hidden" />
           </label>
         </div>
       )}
