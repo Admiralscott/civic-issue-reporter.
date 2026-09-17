@@ -43,7 +43,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   const { data: report } = await supabase
     .from('reports')
-    .select('assigned_dept_id')
+    .select('status, assigned_dept_id')
     .eq('id', params.id)
     .single()
 
@@ -54,22 +54,29 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   const body = await request.json()
   const updateFields: Record<string, unknown> = {}
+  let statusChanged = false
+  let newStatus: ReportStatus | null = null
+  const note = typeof body._note === 'string' ? body._note.slice(0, 2000) : null
 
-  // Only fields intended for operational report updates are accepted.
   if (body.status !== undefined) {
     if (typeof body.status !== 'string' || !STATUSES.has(body.status as ReportStatus)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
-    updateFields.status = body.status
+    newStatus = body.status as ReportStatus
+    statusChanged = newStatus !== report.status
+    updateFields.status = newStatus
+    if (newStatus === 'resolved') updateFields.resolved_at = new Date().toISOString()
+    if (newStatus !== 'resolved' && body.resolved_at === undefined) updateFields.resolved_at = null
   }
+
   if (body.resolution_photo_url !== undefined) {
     if (typeof body.resolution_photo_url !== 'string' && body.resolution_photo_url !== null) {
       return NextResponse.json({ error: 'Invalid resolution photo URL' }, { status: 400 })
     }
     updateFields.resolution_photo_url = body.resolution_photo_url
   }
-  if (body.resolved_at !== undefined) {
-    if (typeof body.resolved_at !== 'string' && body.resolved_at !== null) {
+  if (body.resolved_at !== undefined && newStatus !== 'resolved') {
+    if (actor.role !== 'admin' || (typeof body.resolved_at !== 'string' && body.resolved_at !== null)) {
       return NextResponse.json({ error: 'Invalid resolved_at value' }, { status: 400 })
     }
     updateFields.resolved_at = body.resolved_at
@@ -99,6 +106,20 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  if (statusChanged && newStatus) {
+    const { error: historyError } = await supabase.from('status_history').insert({
+      report_id: params.id,
+      changed_by: user.id,
+      old_status: report.status,
+      new_status: newStatus,
+      note,
+    })
+    if (historyError) {
+      return NextResponse.json({ error: 'Report updated, but activity history could not be recorded' }, { status: 500 })
+    }
+  }
+
   return NextResponse.json({ data })
 }
 
