@@ -30,7 +30,20 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const host = request.headers.get('host') ?? ''
   const isPort3001 = host.includes(':3001') || request.nextUrl.port === '3001'
-  const surface = process.env.NEXT_PUBLIC_APP_SURFACE || (isPort3001 ? 'admin' : 'citizen')
+  const isCitizenVercelHost =
+    host.startsWith('civic-issue-reporter-') ||
+    host.includes('civic-issue-reporter-red.vercel.app') ||
+    host.includes('civic-issue-reporter-sepia.vercel.app')
+  const isAdminVercelHost = host.startsWith('civictrack-admin')
+
+  // The Citizen and Executive portals share this repository but are deployed
+  // separately. Vercel hostnames are authoritative so an admin env var cannot
+  // accidentally make the Citizen deployment render the Executive login.
+  const surface = isPort3001 || isAdminVercelHost
+    ? 'admin'
+    : isCitizenVercelHost
+      ? 'citizen'
+      : (process.env.NEXT_PUBLIC_APP_SURFACE || 'citizen')
 
   // Allow static files and API routes without interference
   if (
@@ -41,17 +54,14 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // 1. Port 3001 (Admin surface) strict redirect rules:
-  // If user visits /auth/login on Port 3001, redirect to /auth/admin
+  // 1. Admin surface strict redirect rules
   if (surface === 'admin') {
-    if (pathname === '/auth/login') {
-      if (!user) {
-        return NextResponse.redirect(new URL('/auth/admin', request.url))
-      }
+    if (pathname === '/auth/login' && !user) {
+      return NextResponse.redirect(new URL('/auth/admin', request.url))
     }
   }
 
-  // 2. Root '/' route redirect based on port surface & auth state
+  // 2. Root '/' route redirect based on portal surface & auth state
   if (pathname === '/') {
     if (!user) {
       const targetLogin = surface === 'admin' ? '/auth/admin' : '/auth/login'
@@ -65,13 +75,12 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 3. Auth pages handling (/auth/login, /auth/admin):
+  // 3. Auth pages handling (/auth/login, /auth/admin)
   if (pathname.startsWith('/auth')) {
     if (user && (pathname === '/auth/login' || pathname === '/auth/admin')) {
       const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
       const role = userData?.role ?? 'citizen'
       const target = getDefaultRoute(role, surface)
-      // Prevent infinite redirect loops: only redirect if target route is different from current pathname
       if (target !== pathname) {
         return NextResponse.redirect(new URL(target, request.url))
       }
@@ -122,7 +131,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/departments') ||
     pathname.startsWith('/analytics')
 
-  // Citizen routes (/report, /my-reports, /map) are fully accessible to logged-in users on Citizen portal
   if (isCitizenRoute) {
     if (surface === 'admin' && role !== 'admin' && role !== 'department') {
       return NextResponse.redirect(new URL('/auth/admin', request.url))
@@ -130,7 +138,6 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // Redirect non-staff from department queue
   if (isDeptRoute && role !== 'department' && role !== 'admin') {
     const target = getDefaultRoute(role, surface)
     if (target !== pathname) {
@@ -138,7 +145,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Redirect non-admin from admin dashboard
   if (isAdminRoute && role !== 'admin') {
     const target = getDefaultRoute(role, surface)
     if (target !== pathname) {
