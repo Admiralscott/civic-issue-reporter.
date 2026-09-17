@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import StatusBadge from '@/components/shared/StatusBadge'
 import StatusUpdateModal from '@/components/department/StatusUpdateModal'
 import { formatDistanceToNow, format } from '@/lib/utils/date'
@@ -9,6 +10,14 @@ export const revalidate = 0
 
 export default async function ReportDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (user) {
+    const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+    if (userData?.role === 'citizen') {
+      redirect('/my-reports')
+    }
+  }
 
   const { data: report } = await supabase
     .from('reports')
@@ -38,6 +47,16 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
+      {/* Back button */}
+      <div>
+        <a
+          href="/queue"
+          className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition shadow-xs"
+        >
+          ← Back to Queue
+        </a>
+      </div>
+
       {/* Report details */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4 mb-4">

@@ -17,6 +17,9 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  XAxis,
+  YAxis,
+  Tooltip,
 } from 'recharts'
 
 const EMOJI: Record<string, string> = {
@@ -151,7 +154,7 @@ export default function GovDashboardTemplate({
 
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={activityData}>
+              <AreaChart data={activityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3498db" stopOpacity={0.4} />
@@ -159,6 +162,12 @@ export default function GovDashboardTemplate({
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }}
+                  labelStyle={{ fontWeight: 'bold', color: '#111827' }}
+                />
                 <Area
                   type="monotone"
                   dataKey="count"
@@ -305,7 +314,7 @@ export default function GovDashboardTemplate({
                       href={`/reports/${r.id}`}
                       className="px-3.5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 self-end sm:self-center shadow-xs"
                     >
-                      View Report <span className="text-xs">?</span>
+                      View Report <ChevronRight className="w-3.5 h-3.5" />
                     </Link>
                   </div>
                 ))

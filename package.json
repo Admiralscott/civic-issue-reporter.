@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:citizen": "npx cross-env NEXT_DIST_DIR=.next-citizen NEXT_PUBLIC_APP_SURFACE=citizen next dev -p 3000",
+    "dev:admin": "npx cross-env NEXT_DIST_DIR=.next-admin NEXT_PUBLIC_APP_SURFACE=admin next dev -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

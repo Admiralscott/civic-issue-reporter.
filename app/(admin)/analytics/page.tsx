@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import AnalyticsCharts from '@/components/admin/AnalyticsCharts'
 import { format, subDays } from '@/lib/utils/date'
 import type { ReportStatus, ReportCategory } from '@/lib/types'
+import Link from 'next/link'
 
 export const metadata: Metadata = { title: 'Analytics' }
 
@@ -51,7 +52,17 @@ export default async function AnalyticsPage() {
     : 0
 
   return (
-    <div>
+    <div className="space-y-4">
+      {/* In-page Back button */}
+      <div>
+        <Link
+          href="/overview"
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition shadow-xs"
+        >
+          ← Back to Overview
+        </Link>
+      </div>
+
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Analytics</h1>
       <AnalyticsCharts
         statusCounts={statusCounts}

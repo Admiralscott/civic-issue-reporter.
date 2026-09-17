@@ -5,6 +5,8 @@
 
 # next.js
 /.next/
+/.next-admin/
+/.next-citizen/
 /out/
 /build
 

@@ -26,7 +26,6 @@ export default function LocationPickerModal({
 
     async function init() {
       const L = (await import('leaflet')).default
-      await import('leaflet/dist/leaflet.css')
 
       if (!containerRef.current) return
       if ((containerRef.current as any)._leaflet_id) return

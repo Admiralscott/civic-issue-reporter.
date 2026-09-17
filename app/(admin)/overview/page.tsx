@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import OverviewTable from '@/components/admin/OverviewTable'
@@ -78,7 +79,9 @@ export default async function OverviewPage({
 
       <div id="city-issue-registry" className="pt-4 scroll-mt-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4">City Issue Registry</h2>
-        <OverviewTable reports={allReports as any} initialStatus={searchParams?.status} />
+        <Suspense fallback={<div className="p-4 text-gray-500 text-sm">Loading registry...</div>}>
+          <OverviewTable reports={allReports as any} initialStatus={searchParams?.status} />
+        </Suspense>
       </div>
     </div>
   )

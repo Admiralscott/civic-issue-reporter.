@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import nextDynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,6 +29,16 @@ export default async function MapPage() {
 
   return (
     <div>
+      {/* In-page Back button */}
+      <div className="mb-4">
+        <Link
+          href="/report"
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition shadow-xs"
+        >
+          ← Back to Report Issue
+        </Link>
+      </div>
+
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Community Map</h1>
         <p className="text-gray-500 text-sm mt-1">

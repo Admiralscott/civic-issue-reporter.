@@ -15,8 +15,6 @@ import {
   BarChart3,
   LogOut,
   MapPin as LogoIcon,
-  Search,
-  Plus,
 } from 'lucide-react'
 import NotificationBell from '@/components/citizen/NotificationBell'
 
@@ -97,23 +95,21 @@ export default function Navigation({ theme = 'terracotta' }: NavProps) {
       <nav className={cn('sticky top-0 z-40 shadow-md', t.bar)}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-4 flex-1">
+            <div className="flex items-center gap-3 flex-1">
               <Link href="/" className="flex items-center gap-2 font-black tracking-wide text-lg text-white uppercase">
                 <LogoIcon className="w-5 h-5 text-amber-200" />
                 <span>CIVIC SERVICE</span>
+                {role === 'admin' && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-extrabold bg-amber-400 text-purple-950 px-2.5 py-0.5 rounded-md tracking-wide normal-case ml-1 shadow-xs">
+                    🇮🇳 Govt Executive Portal
+                  </span>
+                )}
+                {role === 'department' && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-extrabold bg-amber-400 text-orange-950 px-2.5 py-0.5 rounded-md tracking-wide normal-case ml-1 shadow-xs">
+                    🏛️ Department Portal
+                  </span>
+                )}
               </Link>
-
-              {/* Theme 3 Header Search Bar for Citizen PWA */}
-              {isCitizen && (
-                <div className="relative flex-1 max-w-sm hidden sm:flex items-center ml-4">
-                  <Search className="absolute left-3 w-4 h-4 text-gray-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    placeholder="Search for services or reports..."
-                    className="w-full pl-9 pr-4 py-1.5 text-xs rounded-full bg-white/95 text-gray-900 border-none outline-none shadow-inner placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-[#C4511E]"
-                  />
-                </div>
-              )}
 
               {/* Desktop Nav Links */}
               <div className="hidden md:flex items-center gap-1 ml-4">
@@ -134,6 +130,11 @@ export default function Navigation({ theme = 'terracotta' }: NavProps) {
             </div>
 
             <div className="flex items-center gap-3">
+              {role === 'admin' && (
+                <span className="hidden lg:inline-block text-[11px] font-semibold bg-white/20 px-2.5 py-1 rounded-full text-white/90">
+                  Official Govt Portal
+                </span>
+              )}
               {isCitizen && userId && (
                 <NotificationBell userId={userId} />
               )}
@@ -179,18 +180,6 @@ export default function Navigation({ theme = 'terracotta' }: NavProps) {
             <span>My Requests</span>
           </Link>
 
-          {/* 3. Center Prominent Floating + Post Button (Theme 3 signature element) */}
-          <Link
-            href="/report"
-            className="flex flex-col items-center -mt-6 group"
-            title="Post New Report"
-          >
-            <div className="w-12 h-12 rounded-full bg-[#C4511E] text-white flex items-center justify-center shadow-lg border-4 border-white group-hover:bg-[#A83D0C] group-active:scale-95 transition-all">
-              <Plus className="w-6 h-6 stroke-[3]" />
-            </div>
-            <span className="text-[10px] font-extrabold text-[#C4511E] mt-0.5">Post</span>
-          </Link>
-
           {/* 4. Map */}
           <Link
             href="/map"
@@ -216,4 +205,3 @@ export default function Navigation({ theme = 'terracotta' }: NavProps) {
     </>
   )
 }
-

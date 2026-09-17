@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Loader2, ArrowRight } from 'lucide-react'
 
-export default function CitizenLoginPage() {
+export default function ExecutiveLoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,55 +17,48 @@ export default function CitizenLoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
-    let loginEmail = email.trim()
-    if (loginEmail && !loginEmail.includes('@')) {
-      loginEmail = `${loginEmail}@citizen.gov`
-    }
-
     const supabase = createClient()
-    const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
-    if (error) {
-      const retry = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-      if (retry.error) {
-        setError(retry.error.message)
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    if (error) { setError(error.message); setLoading(false); return }
+
+    if (data?.user) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', data.user.id)
+        .single()
+
+      const userRole = userData?.role ?? 'citizen'
+
+      if (userRole === 'citizen') {
+        await supabase.auth.signOut()
+        setError('Access Denied: Citizen accounts cannot access the Executive Portal. Please use the Citizen Portal.')
         setLoading(false)
         return
       }
+
+      if (userRole === 'department') {
+        window.location.href = '/queue'
+      } else {
+        window.location.href = '/overview'
+      }
     }
-
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', (data?.user || (await supabase.auth.getUser()).data.user)?.id)
-      .single()
-
-    const userRole = userData?.role ?? 'citizen'
-
-    if (userRole !== 'citizen') {
-      await supabase.auth.signOut()
-      setError(`Access Restricted: This login is for Citizens. As a ${userRole.toUpperCase()} account, please use the Executive Portal.`)
-      setLoading(false)
-      return
-    }
-
-    window.location.href = '/report'
   }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#F4F1EA] p-4 font-sans antialiased relative overflow-hidden">
       
-      {/* Background Image (Image 3) - Lightly highlighted backdrop */}
+      {/* Background Image (Parliament of India Photo) - Prominently Highlighted Backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <img
-          src="/india-bg.png"
-          alt="Indian Heritage Background"
-          className="w-full h-full object-cover opacity-25 filter contrast-105"
+          src="/parliament-bg.png"
+          alt="Parliament of India Background"
+          className="w-full h-full object-cover opacity-75 filter contrast-110 saturate-110"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#F4F1EA]/60 via-[#F4F1EA]/40 to-[#F4F1EA]/80" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#F4F1EA]/25 via-transparent to-[#F4F1EA]/45" />
       </div>
 
-      {/* Main Login Card */}
+      {/* Main Executive Login Card (Orange & White Template) */}
       <div className="w-full max-w-sm bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col relative z-10 my-auto">
         
         {/* Subtle Header Gradient */}
@@ -73,7 +66,7 @@ export default function CitizenLoginPage() {
 
         <div className="px-7 pt-7 pb-8 flex-1 flex flex-col justify-between relative z-10">
           <div>
-            {/* National Emblem of India (Image 2) at top */}
+            {/* National Emblem of India at top */}
             <div className="flex flex-col items-center justify-center mb-3">
               <img
                 src="/emblem.png"
@@ -88,7 +81,7 @@ export default function CitizenLoginPage() {
             {/* Header Title */}
             <div className="text-center mb-6">
               <h1 className="text-2xl font-black tracking-wider text-gray-900 uppercase">
-                CITIZEN
+                EXECUTIVE PORTAL
               </h1>
               <h2 className="text-base font-bold tracking-widest text-gray-700 uppercase mt-0.5">
                 SERVICE PORTAL
@@ -99,14 +92,14 @@ export default function CitizenLoginPage() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                  Mobile Number / Email
+                  Official Email
                 </label>
                 <input
-                  type="text"
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="citizen@demo.gov"
+                  placeholder="admin@demo.gov"
                   className="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#C4511E] focus:border-transparent outline-none transition text-sm text-gray-900 placeholder:text-gray-400 shadow-inner"
                 />
               </div>
@@ -131,7 +124,7 @@ export default function CitizenLoginPage() {
                 </div>
               )}
 
-              {/* Primary Action Button */}
+              {/* Primary Action Button (Terracotta Orange) */}
               <button
                 type="submit"
                 disabled={loading}
@@ -140,25 +133,19 @@ export default function CitizenLoginPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Signing in…</span>
+                    <span>Verifying Credentials…</span>
                   </>
                 ) : (
                   <>
-                    <span>Sign In</span>
+                    <span>Executive Sign In</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
 
-            {/* Account Link */}
-            <div className="mt-5 text-center">
-              <p className="text-xs text-gray-500">
-                Don't have an account?{' '}
-                <Link href="/auth/signup" className="text-[#C4511E] font-extrabold hover:underline">
-                  Sign Up Now.
-                </Link>
-              </p>
+            <div className="mt-6 text-center text-xs text-gray-500 font-medium">
+              Encrypted Official Gateway &bull; Restrictive Access Control
             </div>
           </div>
         </div>

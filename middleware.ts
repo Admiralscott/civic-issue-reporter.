@@ -7,14 +7,14 @@ export async function middleware(request: NextRequest) {
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim(),
+    (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim(),
     {
       cookies: {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           )
@@ -28,42 +28,88 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
+  const host = request.headers.get('host') ?? ''
+  const isPort3001 = host.includes(':3001') || request.nextUrl.port === '3001'
+  const surface = process.env.NEXT_PUBLIC_APP_SURFACE || (isPort3001 ? 'admin' : 'citizen')
 
-  // Allow auth and API routes without protection
-  if (pathname.startsWith('/auth') || pathname.startsWith('/api')) {
+  // Allow static files and API routes without interference
+  if (
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/_next') ||
+    pathname.includes('.')
+  ) {
     return response
   }
 
-  // Redirect unauthenticated users to login
+  // 1. Port 3001 (Admin surface) strict redirect rules:
+  // If user visits /auth/login on Port 3001, redirect to /auth/admin
+  if (surface === 'admin') {
+    if (pathname === '/auth/login') {
+      if (!user) {
+        return NextResponse.redirect(new URL('/auth/admin', request.url))
+      }
+    }
+  }
+
+  // 2. Root '/' route redirect based on port surface & auth state
+  if (pathname === '/') {
+    if (!user) {
+      const targetLogin = surface === 'admin' ? '/auth/admin' : '/auth/login'
+      return NextResponse.redirect(new URL(targetLogin, request.url))
+    }
+    const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+    const role = userData?.role ?? 'citizen'
+    const targetRoute = getDefaultRoute(role, surface)
+    if (targetRoute !== '/') {
+      return NextResponse.redirect(new URL(targetRoute, request.url))
+    }
+  }
+
+  // 3. Auth pages handling (/auth/login, /auth/admin):
+  if (pathname.startsWith('/auth')) {
+    if (user && (pathname === '/auth/login' || pathname === '/auth/admin')) {
+      const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+      const role = userData?.role ?? 'citizen'
+      const target = getDefaultRoute(role, surface)
+      // Prevent infinite redirect loops: only redirect if target route is different from current pathname
+      if (target !== pathname) {
+        return NextResponse.redirect(new URL(target, request.url))
+      }
+    }
+    return response
+  }
+
+  // 4. Require authentication for protected routes
   if (!user) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    const isExecutiveRoute =
+      pathname.startsWith('/queue') ||
+      pathname.startsWith('/overview') ||
+      pathname.startsWith('/departments') ||
+      pathname.startsWith('/analytics') ||
+      pathname.startsWith('/reports/')
+
+    const targetLogin = (isExecutiveRoute || surface === 'admin') ? '/auth/admin' : '/auth/login'
+    return NextResponse.redirect(new URL(targetLogin, request.url))
   }
 
-  // Allow any authenticated user to view report detail pages (/reports/...)
-  if (pathname.startsWith('/reports/')) {
-    return response
-  }
-
-  // Get user role from DB
+  // 5. Fetch user role for access control
   const { data: userData } = await supabase
     .from('users')
     .select('role')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   const role = userData?.role ?? 'citizen'
-  const surface = process.env.NEXT_PUBLIC_APP_SURFACE
 
-  if (surface === 'citizen' && role !== 'citizen') {
-    await supabase.auth.signOut()
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+  // 6. Restrict Department detail pages (/reports/...) to Staff/Admin only
+  if (pathname.startsWith('/reports/')) {
+    if (role === 'citizen') {
+      return NextResponse.redirect(new URL('/my-reports', request.url))
+    }
+    return response
   }
 
-  if (surface === 'admin' && role === 'citizen') {
-    await supabase.auth.signOut()
-    return NextResponse.redirect(new URL('/auth/login', request.url))
-  }
-
+  // 7. Route Scoping & Authorization
   const isCitizenRoute =
     pathname.startsWith('/report') ||
     pathname.startsWith('/my-reports') ||
@@ -76,34 +122,42 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/departments') ||
     pathname.startsWith('/analytics')
 
+  // Citizen routes (/report, /my-reports, /map) are fully accessible to logged-in users on Citizen portal
+  if (isCitizenRoute) {
+    if (surface === 'admin' && role !== 'admin' && role !== 'department') {
+      return NextResponse.redirect(new URL('/auth/admin', request.url))
+    }
+    return response
+  }
+
+  // Redirect non-staff from department queue
   if (isDeptRoute && role !== 'department' && role !== 'admin') {
-    return NextResponse.redirect(new URL(getDefaultRoute(role), request.url))
+    const target = getDefaultRoute(role, surface)
+    if (target !== pathname) {
+      return NextResponse.redirect(new URL(target, request.url))
+    }
   }
 
-  if (isCitizenRoute && role !== 'citizen') {
-    return NextResponse.redirect(new URL(getDefaultRoute(role), request.url))
-  }
-
+  // Redirect non-admin from admin dashboard
   if (isAdminRoute && role !== 'admin') {
-    return NextResponse.redirect(new URL(getDefaultRoute(role), request.url))
-  }
-
-  if (pathname === '/') {
-    return NextResponse.redirect(new URL(getDefaultRoute(role), request.url))
+    const target = getDefaultRoute(role, surface)
+    if (target !== pathname) {
+      return NextResponse.redirect(new URL(target, request.url))
+    }
   }
 
   return response
 }
 
-function getDefaultRoute(role: string): string {
-  const surface = process.env.NEXT_PUBLIC_APP_SURFACE
+function getDefaultRoute(role: string, surface?: string): string {
+  if (surface === 'admin') {
+    if (role === 'department') return '/queue'
+    if (role === 'admin') return '/overview'
+    return '/auth/admin'
+  }
   if (surface === 'citizen') {
     return '/report'
   }
-  if (surface === 'admin') {
-    return role === 'department' ? '/queue' : '/overview'
-  }
-
   switch (role) {
     case 'department':
       return '/queue'

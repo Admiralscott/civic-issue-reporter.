@@ -113,7 +113,6 @@ export default function MapView({ reports }: MapViewProps) {
 
     async function init() {
       const L = (await import('leaflet')).default
-      await import('leaflet/dist/leaflet.css')
 
       if (!containerRef.current) return
 

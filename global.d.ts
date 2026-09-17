@@ -18,7 +18,10 @@ declare module 'lucide-react' {
   export const BarChart3: LucideIcon
   export const LogOut: LucideIcon
   export const Shield: LucideIcon
+  export const ShieldCheck: LucideIcon
+  export const UserCheck: LucideIcon
   export const Plus: LucideIcon
+  export const PlusCircle: LucideIcon
   export const Trash2: LucideIcon
   export const Filter: LucideIcon
   export const Search: LucideIcon
