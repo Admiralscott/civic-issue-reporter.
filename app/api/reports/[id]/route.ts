@@ -16,14 +16,28 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data, error } = await supabase
+  const { data: actor } = await supabase
+    .from('users')
+    .select('role, department_id')
+    .eq('id', user.id)
+    .single()
+  if (!actor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { data: report, error } = await supabase
     .from('reports')
     .select('*, departments(name), users(full_name, phone)')
     .eq('id', params.id)
     .single()
 
-  if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json({ data })
+  if (error || !report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const canRead =
+    actor.role === 'admin' ||
+    (actor.role === 'department' && report.assigned_dept_id === actor.department_id) ||
+    (actor.role === 'citizen' && report.citizen_id === user.id)
+
+  if (!canRead) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return NextResponse.json({ data: report })
 }
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
