@@ -3,7 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 from PIL import Image, UnidentifiedImageError
-import os, re, json
+import io
+import os
+import re
+import json
 
 app = FastAPI(title="CivicTrack ML Service", version="1.0.0")
 
@@ -69,7 +72,7 @@ async def classify_image(file: UploadFile = File(...)):
         raise HTTPException(413, "Image is too large; maximum size is 10 MB")
 
     try:
-        with Image.open(__import__('io').BytesIO(contents)) as img:
+        with Image.open(io.BytesIO(contents)) as img:
             img.verify()
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise HTTPException(400, "Invalid or unsafe image file") from exc
