@@ -10,7 +10,6 @@ import {
   TrendingUp,
   ChevronRight,
   X,
-  ExternalLink,
   MapPin,
 } from 'lucide-react'
 import {
@@ -146,7 +145,7 @@ export default function GovDashboardTemplate({
               <TrendingUp className="w-4 h-4 text-blue-600" /> Issue Activity Trend
             </div>
             <div className="bg-[#00c0ef] text-white p-1 rounded cursor-pointer hover:bg-blue-600">
-              <Minus className="w-3.5 h-3.5" />
+              <span className="block w-3.5 h-3.5 leading-none text-center font-bold text-xs">-</span>
             </div>
           </div>
 
@@ -181,7 +180,7 @@ export default function GovDashboardTemplate({
               <CheckCircle2 className="w-4 h-4 text-green-600" /> Resolution & System Metrics
             </div>
             <div className="bg-[#00a65a] text-white p-1 rounded cursor-pointer hover:bg-green-600">
-              <Minus className="w-3.5 h-3.5" />
+              <span className="block w-3.5 h-3.5 leading-none text-center font-bold text-xs">-</span>
             </div>
           </div>
 
@@ -306,7 +305,7 @@ export default function GovDashboardTemplate({
                       href={`/reports/${r.id}`}
                       className="px-3.5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 self-end sm:self-center shadow-xs"
                     >
-                      View Report <ExternalLink className="w-3.5 h-3.5" />
+                      View Report <span className="text-xs">?</span>
                     </Link>
                   </div>
                 ))
