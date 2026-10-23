@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import MyReportsList from '@/components/citizen/MyReportsList'
 import Link from 'next/link'
 import { FileText, Plus } from 'lucide-react'
+import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -11,22 +12,45 @@ export const revalidate = 0
 export const metadata: Metadata = { title: 'My Requests' }
 
 export default async function MyReportsPage() {
+  const user = await getCurrentUser()
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     redirect('/auth/login')
   }
 
-  const { data: reports } = await supabase
-    .from('reports')
-    .select('*')
-    .order('created_at', { ascending: false })
+  let allReports: any[] = []
+  let connectionWarning = false
 
-  const allReports = (reports ?? []) as any[]
+  try {
+    const { data: reports, error } = await supabase
+      .from('reports')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error || !reports) {
+      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
+      allReports = MOCK_REPORTS
+      connectionWarning = true
+    } else {
+      allReports = reports
+    }
+  } catch {
+    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
+    allReports = MOCK_REPORTS
+    connectionWarning = true
+  }
 
   return (
     <div>
+      {/* Connection warning banner */}
+      {connectionWarning && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-semibold text-amber-800 flex items-center justify-between shadow-xs">
+          <span>⚠️ Unable to reach live database. Showing fallback community issues.</span>
+          <span className="text-[10px] text-amber-600 underline cursor-pointer" title="Check Supabase URL & database connection in .env.local">Check DB config</span>
+        </div>
+      )}
+
       {/* In-page Back button */}
       <div className="mb-4">
         <Link

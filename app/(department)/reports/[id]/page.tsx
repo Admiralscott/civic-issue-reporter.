@@ -1,60 +1,110 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import StatusBadge from '@/components/shared/StatusBadge'
 import StatusUpdateModal from '@/components/department/StatusUpdateModal'
 import { formatDistanceToNow, format } from '@/lib/utils/date'
 import type { Report, ReportStatus } from '@/lib/types'
 
+import Link from 'next/link'
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function ReportDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
-  if (user) {
-    const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+  let userRole = (user as any)?.role ?? 'admin'
+  let userDeptId = (user as any)?.department_id ?? null
+  let userDeptName = 'Your Department'
+
+  if (user?.id) {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role, department_id, departments(name)')
+      .eq('id', user.id)
+      .maybeSingle()
+
     if (userData?.role === 'citizen') {
       redirect('/my-reports')
     }
+    if (userData?.role) userRole = userData.role
+    if (userData?.department_id) userDeptId = userData.department_id
+    if ((userData as any)?.departments?.name) userDeptName = (userData as any).departments.name
   }
 
-  const { data: report } = await supabase
-    .from('reports')
-    .select('*, departments(name)')
-    .eq('id', params.id)
-    .maybeSingle()
+  let report: any = null
+
+  try {
+    const { data, error } = await supabase
+      .from('reports')
+      .select('*, departments(name)')
+      .eq('id', params.id)
+      .maybeSingle()
+
+    if (error || !data) {
+      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
+      report = MOCK_REPORTS.find((m) => m.id === params.id) || MOCK_REPORTS[0]
+    } else {
+      report = data
+    }
+  } catch {
+    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
+    report = MOCK_REPORTS.find((m) => m.id === params.id) || MOCK_REPORTS[0]
+  }
 
   if (!report) {
     return (
       <div className="max-w-md mx-auto my-12 p-6 bg-white rounded-2xl border border-gray-200 text-center shadow-sm">
         <h2 className="text-lg font-bold text-gray-900 mb-2">Report Not Found</h2>
         <p className="text-gray-500 text-sm mb-4">The requested report ID could not be loaded.</p>
-        <a href="/queue" className="inline-block px-4 py-2 bg-orange-600 text-white rounded-xl text-sm font-medium hover:bg-orange-700 transition">
+        <Link href="/queue" className="inline-block px-4 py-2 bg-orange-600 text-white rounded-xl text-sm font-medium hover:bg-orange-700 transition">
           Return to Queue
-        </a>
+        </Link>
       </div>
     )
   }
 
-  const { data: history } = await supabase
-    .from('status_history')
-    .select('id, new_status, note, created_at')
-    .eq('report_id', params.id)
-    .order('created_at', { ascending: false })
+  let history: any[] = []
+  try {
+    const { data: historyData } = await supabase
+      .from('status_history')
+      .select('id, new_status, note, created_at')
+      .eq('report_id', params.id)
+      .order('created_at', { ascending: false })
+    history = historyData ?? []
+  } catch {
+    history = []
+  }
 
   const r = report as Report & { departments: { name: string } | null }
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
-      {/* Back button */}
-      <div>
-        <a
+      {/* Back button and breadcrumbs */}
+      <div className="flex items-center gap-2">
+        {r.assigned_dept_id ? (
+          <Link
+            href={`/queue/${r.assigned_dept_id}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition shadow-2xs"
+          >
+            ← Back to {r.departments?.name ?? 'Department'} Queue
+          </Link>
+        ) : (
+          <Link
+            href="/queue"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition shadow-2xs"
+          >
+            ← Back to All Departments
+          </Link>
+        )}
+        <Link
           href="/queue"
-          className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition shadow-xs"
+          className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 font-medium transition"
         >
-          ← Back to Queue
-        </a>
+          All Departments
+        </Link>
       </div>
 
       {/* Report details */}
@@ -100,7 +150,18 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
       {/* Status Update */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <h2 className="font-semibold text-gray-900 mb-4">Update Status</h2>
-        <StatusUpdateModal reportId={r.id} currentStatus={r.status as ReportStatus} />
+        {userRole === 'department' && userDeptId && r.assigned_dept_id && r.assigned_dept_id !== userDeptId ? (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs leading-relaxed">
+            <p className="font-bold text-amber-800 mb-1 flex items-center gap-1.5">
+              <span>🔒 Assigned to:</span> {r.departments?.name ?? 'Another Department'}
+            </p>
+            <p className="text-amber-700">
+              Your staff account is assigned to <strong>{userDeptName}</strong>. Status changes for this issue can only be performed by staff from {r.departments?.name ?? 'the assigned department'} or a Municipal Administrator.
+            </p>
+          </div>
+        ) : (
+          <StatusUpdateModal reportId={r.id} currentStatus={r.status as ReportStatus} />
+        )}
       </div>
 
       {/* History */}

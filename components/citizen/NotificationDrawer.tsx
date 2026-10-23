@@ -23,9 +23,9 @@ export default function NotificationDrawer({
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedNotification, setSelectedNotification] = useState<any | null>(null)
-  const supabase = createClient()
 
   useEffect(() => {
+    const supabase = createClient()
     supabase
       .from('notifications')
       .select('*')
@@ -39,6 +39,7 @@ export default function NotificationDrawer({
   }, [userId])
 
   async function markAllRead() {
+    const supabase = createClient()
     await supabase
       .from('notifications')
       .update({ read_at: new Date().toISOString() })
@@ -50,6 +51,7 @@ export default function NotificationDrawer({
 
   async function clearAll() {
     if (!window.confirm('Are you sure you want to clear all notifications?')) return
+    const supabase = createClient()
     await supabase
       .from('notifications')
       .delete()
@@ -60,6 +62,7 @@ export default function NotificationDrawer({
 
   function handleClick(n: any) {
     if (!n.read_at) {
+      const supabase = createClient()
       supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', n.id)
       setItems(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x))
     }

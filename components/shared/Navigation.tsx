@@ -56,7 +56,7 @@ const LINKS = {
     { href: '/map',        label: 'Map',          icon: MapPin },
   ],
   department: [
-    { href: '/queue',      label: 'Report Queue', icon: Inbox },
+    { href: '/queue',      label: 'Departments', icon: Building2 },
   ],
   admin: [
     { href: '/overview',    label: 'Overview',    icon: LayoutDashboard },
@@ -77,16 +77,18 @@ export default function Navigation({ theme = 'terracotta' }: NavProps) {
 
   useEffect(() => {
     if (isCitizen) {
-      const supabase = createClient()
-      supabase.auth.getUser().then(({ data }) => {
-        setUserId(data.user?.id ?? null)
+      import('@/lib/client-auth').then(({ getClientUser }) => {
+        getClientUser().then((u) => setUserId(u?.id ?? 'demo-citizen-id'))
       })
     }
   }, [isCitizen])
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    document.cookie = 'civic_demo_user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch {}
     router.push(isCitizen ? '/auth/login' : '/auth/admin')
   }
 
@@ -119,7 +121,7 @@ export default function Navigation({ theme = 'terracotta' }: NavProps) {
                     href={href}
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition',
-                      pathname === href ? t.active : t.hover
+                      pathname === href || (href === '/queue' && pathname.startsWith('/queue')) ? t.active : t.hover
                     )}
                   >
                     <Icon className="w-4 h-4" />
@@ -180,7 +182,7 @@ export default function Navigation({ theme = 'terracotta' }: NavProps) {
             <span>My Requests</span>
           </Link>
 
-          {/* 4. Map */}
+          {/* 3. Map */}
           <Link
             href="/map"
             className={cn(
@@ -192,7 +194,7 @@ export default function Navigation({ theme = 'terracotta' }: NavProps) {
             <span>Map</span>
           </Link>
 
-          {/* 5. Logout */}
+          {/* 4. Logout */}
           <button
             onClick={handleLogout}
             className="flex flex-col items-center gap-0.5 py-1 px-2 text-[10px] font-bold text-gray-500 hover:text-gray-900 transition"

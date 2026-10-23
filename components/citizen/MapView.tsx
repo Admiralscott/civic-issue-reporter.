@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { CATEGORY_EMOJI, formatSnakeCase } from '@/lib/utils/constants'
 import type { Report } from '@/lib/types'
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string }> = {
@@ -16,10 +17,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string }> = {
   other:       { bg: '#6b7280', border: '#374151' },
 }
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  road_damage: '🛣️', water_leak: '💧', electrical: '⚡',
-  garbage: '🗑️', graffiti: '🎨', noise: '📢', emergency: '🚨', other: '📋',
-}
+
 
 interface MapViewProps {
   reports: Array<{
@@ -168,7 +166,7 @@ export default function MapView({ reports }: MapViewProps) {
               </div>
               <div style="margin-bottom:6px">
                 <span style="text-transform:capitalize;color:#4b5563;font-weight:500">
-                  ${report.category.replace('_', ' ')}
+                 ${formatSnakeCase(report.category)}
                 </span>
                 <span style="background:#e2e8f0;color:#1e293b;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:600;margin-left:6px">
                   ${report.status.toUpperCase()}

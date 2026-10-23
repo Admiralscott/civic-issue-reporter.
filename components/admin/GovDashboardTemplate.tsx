@@ -21,11 +21,7 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts'
-
-const EMOJI: Record<string, string> = {
-  road_damage: '🛣️', water_leak: '💧', electrical: '⚡',
-  garbage: '🗑️', graffiti: '🎨', noise: '📢', emergency: '🚨', other: '📋',
-}
+import { CATEGORY_EMOJI } from '@/lib/utils/constants'
 
 interface GovDashboardProps {
   metrics: {
@@ -283,7 +279,7 @@ export default function GovDashboardTemplate({
                   >
                     <div className="flex items-start gap-3 flex-1">
                       <div className="text-2xl p-2.5 bg-green-50 rounded-xl border border-green-100 shrink-0">
-                        {EMOJI[r.category] ?? '📋'}
+                        {CATEGORY_EMOJI[r.category] ?? '📋'}
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">

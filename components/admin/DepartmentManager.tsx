@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Department, Report, StatusHistory } from '@/lib/types'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { formatDistanceToNow, format } from '@/lib/utils/date'
+import { CATEGORY_EMOJI, formatSnakeCase } from '@/lib/utils/constants'
 import {
   Building2,
   ChevronRight,
@@ -16,11 +17,6 @@ import {
   Mail,
   User,
 } from 'lucide-react'
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  road_damage: '🛣️', water_leak: '💧', electrical: '⚡',
-  garbage: '🗑️', graffiti: '🎨', noise: '📢', emergency: '🚨', other: '📋',
-}
 
 export type DepartmentWithReports = Department & {
   reports: Array<
@@ -108,7 +104,7 @@ export default function DepartmentManager({
                           className="inline-flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-200/60"
                         >
                           <Tag className="w-2.5 h-2.5" />
-                          {cat.replace('_', ' ')}
+                          {formatSnakeCase(cat)}
                         </span>
                       ))}
                     </div>
@@ -258,7 +254,7 @@ export default function DepartmentManager({
                                               <span>
                                                 Status changed to{' '}
                                                 <span className="text-purple-700 capitalize">
-                                                  {entry.new_status.replace('_', ' ')}
+                                                  {formatSnakeCase(entry.new_status)}
                                                 </span>
                                               </span>
                                               <span className="text-[10px] text-gray-400 font-mono" suppressHydrationWarning>

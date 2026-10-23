@@ -26,6 +26,8 @@ declare module 'lucide-react' {
   export const Filter: LucideIcon
   export const Search: LucideIcon
   export const ArrowRight: LucideIcon
+  export const ArrowLeft: LucideIcon
+  export const ChevronLeft: LucideIcon
   export const RefreshCw: LucideIcon
   export const User: LucideIcon
   export const Lock: LucideIcon

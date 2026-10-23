@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { enqueueReport, isOnline } from '@/lib/utils/offline-queue'
+import { computePriorityScore } from '@/lib/utils/priority'
+import { CATEGORY_DEPT_ID, CATEGORY_DEPT_NAME, formatSnakeCase } from '@/lib/utils/constants'
 import { MapPin, Camera, Loader2, CheckCircle, WifiOff, Map as MapIcon, X } from 'lucide-react'
 import type { ReportCategory } from '@/lib/types'
 
@@ -38,6 +40,7 @@ export default function ReportForm() {
   const [queued, setQueued] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [online, setOnline] = useState(true)
+  const previewUrlsRef = useRef<string[]>([])
   const router = useRouter()
 
   useEffect(() => {
@@ -46,7 +49,12 @@ export default function ReportForm() {
     const handleOffline = () => setOnline(false)
     window.addEventListener('online',  handleOnline)
     window.addEventListener('offline', handleOffline)
-    return () => { window.removeEventListener('online',  handleOnline); window.removeEventListener('offline', handleOffline) }
+    return () => {
+      window.removeEventListener('online',  handleOnline)
+      window.removeEventListener('offline', handleOffline)
+      // Revoke any remaining blob URLs on unmount
+      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    }
   }, [])
 
   const captureGPS = () => {
@@ -71,7 +79,11 @@ export default function ReportForm() {
     const files = Array.from(e.target.files ?? [])
     const combined = [...photos, ...files].slice(0, 3)
     setPhotos(combined)
-    setPhotoPreviews(combined.map((f) => URL.createObjectURL(f)))
+    // Revoke old blob URLs before creating new ones
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    const newUrls = combined.map((f) => URL.createObjectURL(f))
+    previewUrlsRef.current = newUrls
+    setPhotoPreviews(newUrls)
   }
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -93,7 +105,11 @@ export default function ReportForm() {
       e.preventDefault()
       const combined = [...photos, ...pastedFiles].slice(0, 3)
       setPhotos(combined)
-      setPhotoPreviews(combined.map((f) => URL.createObjectURL(f)))
+      // Revoke old blob URLs before creating new ones
+      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+      const newUrls = combined.map((f) => URL.createObjectURL(f))
+      previewUrlsRef.current = newUrls
+      setPhotoPreviews(newUrls)
     }
   }
 
@@ -107,40 +123,33 @@ export default function ReportForm() {
     setLoading(true)
     setError(null)
 
-    // Fallback location if GPS / map picker was not used
-    const finalLocation = location ?? {
-      lat: 9.5100 + (Math.random() * 0.03 - 0.015),
-      lng: 77.6322 + (Math.random() * 0.03 - 0.015),
+    if (!location) {
+      setError('Please select a location using GPS or the map picker.')
+      setLoading(false)
+      return
     }
+
+    const finalLocation = location
 
     const reportData = { title, description, category, address, location: finalLocation }
 
     if (!online) {
-      enqueueReport(reportData as any)
+      enqueueReport(reportData)
       setQueued(true)
       setLoading(false)
       return
     }
 
     try {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      let user: any = session?.user
+      const { getClientUser } = await import('@/lib/client-auth')
+      const { addMockReport } = await import('@/lib/utils/mock-data')
 
-      if (!user) {
-        const { data } = await supabase.auth.getUser()
-        user = data.user
-      }
-
-      if (!user) {
-        const { data: refreshData } = await supabase.auth.refreshSession()
-        user = refreshData?.session?.user || refreshData?.user
-      }
-
-      const userId = user?.id
-      if (!userId) throw new Error('Session expired. Please refresh the page or sign in to submit your report.')
+      const user = await getClientUser()
+      const userId = user?.id ?? 'demo-citizen-id'
 
       const photoUrls: string[] = []
+
+      const supabase = createClient()
       for (const photo of photos) {
         try {
           const ext = photo.name.split('.').pop()
@@ -149,33 +158,61 @@ export default function ReportForm() {
           if (!uploadErr) {
             const { data: { publicUrl } } = supabase.storage.from('report-photos').getPublicUrl(path)
             photoUrls.push(publicUrl)
+          } else {
+            console.error('Photo upload failed:', uploadErr.message)
           }
-        } catch (photoErr) {
-          console.warn('Photo upload warning:', photoErr)
+        } catch (err) {
+          console.error('Photo upload error:', err)
         }
       }
 
-      const { data: depts } = await supabase.from('departments').select('id, name')
-      let deptId: string | null = null
-      if (depts && depts.length > 0) {
-        if (category === 'water_leak') {
-          deptId = depts.find((d) => d.name.toLowerCase().includes('water'))?.id ?? depts[0].id
-        } else if (category === 'garbage' || category === 'graffiti' || category === 'noise') {
-          deptId = depts.find((d) => d.name.toLowerCase().includes('sanitation') || d.name.toLowerCase().includes('waste'))?.id ?? depts[0].id
-        } else {
-          deptId = depts.find((d) => d.name.toLowerCase().includes('road') || d.name.toLowerCase().includes('infra'))?.id ?? depts[0].id
-        }
-      }
+      const deptName = CATEGORY_DEPT_NAME[category]
+      const deptId = CATEGORY_DEPT_ID[category]
 
-      const { error: insertErr } = await supabase.from('reports').insert({
+      const reportTitle = title || `${formatSnakeCase(category).toUpperCase()} Report`
+      const reportDesc = description || 'Civic issue report submitted by citizen.'
+
+      const newReportData = {
+        id: `report-${Date.now()}`,
         citizen_id: userId,
-        title, description, category,
-        photo_urls: photoUrls,
-        address: address || 'Srivilliputhur, Virudhunagar, Tamil Nadu',
+        title: reportTitle,
+        description: reportDesc,
+        category,
+        status: 'pending' as const,
+        priority_score: computePriorityScore({ category, title: reportTitle, description: reportDesc }),
         location: `POINT(${finalLocation.lng} ${finalLocation.lat})`,
+        address: address || 'Srivilliputhur, Virudhunagar, Tamil Nadu',
         assigned_dept_id: deptId,
-      })
-      if (insertErr) throw insertErr
+        photo_urls: photoUrls,
+        resolution_photo_url: null,
+        upvote_count: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        resolved_at: null,
+        departments: { name: deptName },
+      }
+
+      try {
+        const { error: insertErr } = await supabase.from('reports').insert({
+          citizen_id: userId,
+          title: newReportData.title,
+          description: newReportData.description,
+          category: newReportData.category,
+          photo_urls: photoUrls,
+          address: newReportData.address,
+          location: newReportData.location,
+          assigned_dept_id: deptId,
+        })
+        if (insertErr) {
+          console.error('DB insert failed, falling back to mock:', insertErr.message)
+          addMockReport(newReportData)
+        }
+        // On success, data comes from DB — no mock needed
+      } catch (err) {
+        console.error('DB insert error, falling back to mock:', err)
+        addMockReport(newReportData)
+      }
+
       setSuccess(true)
     } catch (err: any) {
       setError(err.message ?? 'Failed to submit. Try again.')

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import type { UserRole } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,9 +22,9 @@ export default async function Home() {
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .single<{ role: UserRole }>()
 
-    const role = (data as any)?.role
+    const role = data?.role
     if (role === 'department') redirect('/queue')
     if (role === 'admin') redirect('/overview')
     redirect('/auth/admin')
@@ -34,9 +35,9 @@ export default async function Home() {
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .single<{ role: UserRole }>()
 
-    const role = (data as any)?.role
+    const role = data?.role
     if (role === 'department') redirect('/queue')
     if (role === 'admin') redirect('/overview')
     redirect('/report')

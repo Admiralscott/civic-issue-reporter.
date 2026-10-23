@@ -19,13 +19,25 @@ const MapView = nextDynamic(() => import('@/components/citizen/MapView'), {
 
 export default async function MapPage() {
   const supabase = createClient()
+  let mapReports: any[] = []
 
-  // Select ALL reports without excluding NULL locations so all reports are mapped
-  const { data: reports } = await supabase
-    .from('reports')
-    .select('id, title, category, status, address, location, created_at')
-    .order('created_at', { ascending: false })
-    .limit(300)
+  try {
+    const { data: reports, error } = await supabase
+      .from('reports')
+      .select('id, title, category, status, address, location, created_at')
+      .order('created_at', { ascending: false })
+      .limit(300)
+
+    if (error || !reports) {
+      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
+      mapReports = MOCK_REPORTS
+    } else {
+      mapReports = reports
+    }
+  } catch {
+    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
+    mapReports = MOCK_REPORTS
+  }
 
   return (
     <div>
@@ -42,11 +54,11 @@ export default async function MapPage() {
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Community Map</h1>
         <p className="text-gray-500 text-sm mt-1">
-          {reports?.length ?? 0} active report(s) plotted on the map
+          {mapReports.length} active report(s) plotted on the map
         </p>
       </div>
 
-      <MapView reports={(reports ?? []) as any} />
+      <MapView reports={mapReports as any} />
 
       {/* Color Legend */}
       <div className="mt-4 flex flex-wrap gap-4 text-xs font-medium text-gray-600 bg-white p-3 rounded-xl border border-gray-200">

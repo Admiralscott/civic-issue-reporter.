@@ -2,8 +2,9 @@
 
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend,
+  PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts'
+import { formatSnakeCase } from '@/lib/utils/constants'
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#eab308', acknowledged: '#3b82f6', in_progress: '#6366f1',
@@ -20,10 +21,10 @@ interface Props {
 
 export default function AnalyticsCharts({ statusCounts, categoryCounts, dailyCounts, metrics }: Props) {
   const statusData = Object.entries(statusCounts).map(([name, value]) => ({
-    name: name.replace('_', ' '), value, fill: STATUS_COLORS[name] ?? '#6b7280',
+    name: formatSnakeCase(name), value, fill: STATUS_COLORS[name] ?? '#6b7280',
   }))
   const categoryData = Object.entries(categoryCounts).map(([name, value]) => ({
-    name: name.replace('_', ' '), value,
+    name: formatSnakeCase(name), value,
   }))
 
   return (

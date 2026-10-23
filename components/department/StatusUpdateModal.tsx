@@ -40,40 +40,39 @@ export default function StatusUpdateModal({
     setError(null)
 
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
       let resPhotoUrl: string | null = null
       if (resPhoto && newStatus === 'resolved') {
-        const path = `resolution/${reportId}/${Date.now()}.${resPhoto.name.split('.').pop()}`
-        await supabase.storage.from('report-photos').upload(path, resPhoto)
-        const { data: { publicUrl } } = supabase.storage.from('report-photos').getPublicUrl(path)
-        resPhotoUrl = publicUrl
+        try {
+          const supabase = createClient()
+          const path = `resolution/${reportId}/${Date.now()}.${resPhoto.name.split('.').pop()}`
+          await supabase.storage.from('report-photos').upload(path, resPhoto)
+          const { data } = supabase.storage.from('report-photos').getPublicUrl(path)
+          resPhotoUrl = data?.publicUrl ?? null
+        } catch (uploadErr) {
+          console.warn('Resolution photo upload failed, continuing with status update:', uploadErr)
+        }
       }
 
-      const { error: updateErr } = await supabase
-        .from('reports')
-        .update({
-          status: newStatus,
-          ...(resPhotoUrl && { resolution_photo_url: resPhotoUrl }),
-          ...(newStatus === 'resolved' && { resolved_at: new Date().toISOString() }),
-        })
-        .eq('id', reportId)
-
-      if (updateErr) throw updateErr
-
-      await supabase.from('status_history').insert({
-        report_id: reportId,
-        changed_by: user.id,
-        new_status: newStatus,
-        note: note || null,
+      const res = await fetch(`/api/reports/${reportId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          new_status: newStatus,
+          note: note.trim() || undefined,
+          resolution_photo_url: resPhotoUrl,
+        }),
       })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        throw new Error(result.error ?? 'Failed to update status')
+      }
 
       setSuccess(true)
       setTimeout(() => {
         router.refresh()
-      }, 500)
+      }, 600)
     } catch (err: any) {
       setError(err.message ?? 'Failed to update status')
     } finally {

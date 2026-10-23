@@ -5,12 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import type { Report } from '@/lib/types'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { formatDistanceToNow } from '@/lib/utils/date'
+import { CATEGORY_EMOJI, formatSnakeCase } from '@/lib/utils/constants'
 import { Search, ChevronRight, ArrowUpDown } from 'lucide-react'
 
-const EMOJI: Record<string, string> = {
-  road_damage: '🛣️', water_leak: '💧', electrical: '⚡',
-  garbage: '🗑️', graffiti: '🎨', noise: '📢', emergency: '🚨', other: '📋',
-}
 type SortKey = 'created_at' | 'priority_score'
 
 export default function OverviewTable({
@@ -72,7 +69,7 @@ export default function OverviewTable({
           className="px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none">
           <option value="">All Statuses</option>
           {['pending','acknowledged','in_progress','resolved','closed','reopened'].map(s => (
-            <option key={s} value={s}>{s.replace('_', ' ')}</option>
+            <option key={s} value={s}>{formatSnakeCase(s)}</option>
           ))}
         </select>
       </div>
@@ -104,7 +101,7 @@ export default function OverviewTable({
                   className="hover:bg-purple-50/30 cursor-pointer transition">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span>{EMOJI[r.category] ?? '📋'}</span>
+                      <span>{CATEGORY_EMOJI[r.category] ?? '📋'}</span>
                       <div>
                         <p className="font-medium text-gray-900 text-sm line-clamp-1">{r.title}</p>
                         <p className="text-xs text-gray-400 line-clamp-1">{r.address}</p>

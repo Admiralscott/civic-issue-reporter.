@@ -5,12 +5,10 @@ import type { Report } from '@/lib/types'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { formatDistanceToNow, format } from '@/lib/utils/date'
 import { createClient } from '@/lib/supabase/client'
+import { CATEGORY_EMOJI, formatSnakeCase } from '@/lib/utils/constants'
 import { MapPin, ThumbsUp, Calendar, CheckCircle2, ChevronRight, X, Clock, Building2, AlertTriangle, ShieldCheck, Check } from 'lucide-react'
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  road_damage: '🛣️', water_leak: '💧', electrical: '⚡',
-  garbage: '🗑️', graffiti: '🎨', noise: '📢', emergency: '🚨', other: '📋',
-}
+
 
 export default function ReportCard({ report }: { report: Report }) {
   const [showModal, setShowModal] = useState(false)
@@ -168,7 +166,7 @@ export default function ReportCard({ report }: { report: Report }) {
               <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-orange-600">Current Live Status</p>
-                  <p className="text-sm font-bold text-gray-900 capitalize mt-0.5">{report.status.replace('_', ' ')}</p>
+                  <p className="text-sm font-bold text-gray-900 capitalize mt-0.5">{formatSnakeCase(report.status)}</p>
                 </div>
                 <StatusBadge status={report.status} />
               </div>
@@ -222,7 +220,7 @@ export default function ReportCard({ report }: { report: Report }) {
                       <div key={h.id} className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-bold text-gray-800 capitalize bg-white px-2 py-0.5 rounded border border-gray-200 text-[10px]">
-                            {h.new_status.replace('_', ' ')}
+                            {formatSnakeCase(h.new_status)}
                           </span>
                           <span className="text-[10px] text-gray-400" suppressHydrationWarning>
                             {format(new Date(h.created_at), 'MMM d, h:mm a')}

@@ -6,9 +6,10 @@ import NotificationDrawer from './NotificationDrawer'
 export default function NotificationBell({ userId }: { userId: string }) {
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
-  const supabase = createClient()
 
   useEffect(() => {
+    const supabase = createClient()
+
     supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })

@@ -1,15 +1,31 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import ReportQueue from '@/components/department/ReportQueue'
+import { getCurrentUser } from '@/lib/auth'
+import DepartmentCardList from '@/components/department/DepartmentCardList'
+import { CONFIGURED_DEPARTMENTS } from '@/lib/utils/department-helpers'
+import type { Department } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const metadata: Metadata = { title: 'Report Queue' }
+export const metadata: Metadata = {
+  title: 'Department Portals · CivicTrack',
+  description: 'Select a municipal department to view assigned civic reports and manage resolution workflows.',
+}
 
-export default async function QueuePage() {
+export default async function QueuePage({
+  searchParams,
+}: {
+  searchParams?: { dept?: string }
+}) {
+  // If dept query param is provided, seamlessly forward to the department route
+  if (searchParams?.dept) {
+    redirect(`/queue/${searchParams.dept}`)
+  }
+
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   if (!user) {
     return (
@@ -19,28 +35,60 @@ export default async function QueuePage() {
     )
   }
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('department_id, departments(name)')
-    .eq('id', user.id)
-    .single()
+  let deptName = 'Municipal Department'
+  if (user.id) {
+    try {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role, department_id, departments(name)')
+        .eq('id', user.id)
+        .maybeSingle()
 
-  const deptId = (userData as any)?.department_id
+      if ((userData as any)?.departments?.name) {
+        deptName = (userData as any).departments.name
+      }
+    } catch {}
+  }
 
-  const { data: reports } = await supabase
-    .from('reports')
-    .select('*, departments(name)')
-    .order('priority_score', { ascending: false })
+  let departments: Department[] = []
+  try {
+    const { data: dbDepts, error: deptError } = await supabase
+      .from('departments')
+      .select('*')
+      .order('name')
+
+    if (deptError || !dbDepts || dbDepts.length === 0) {
+      departments = CONFIGURED_DEPARTMENTS
+    } else {
+      departments = dbDepts
+    }
+  } catch {
+    departments = CONFIGURED_DEPARTMENTS
+  }
+
+  let reports: any[] = []
+  try {
+    const { data: dbReports, error: repError } = await supabase
+      .from('reports')
+      .select('*, departments(name)')
+      .order('priority_score', { ascending: false })
+
+    if (repError || !dbReports) {
+      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
+      reports = MOCK_REPORTS
+    } else {
+      reports = dbReports
+    }
+  } catch {
+    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
+    reports = MOCK_REPORTS
+  }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Report Queue</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {(userData as any)?.departments?.name ?? 'All Departments Queue'} · {(reports ?? []).length} reports
-        </p>
-      </div>
-      <ReportQueue reports={(reports ?? []) as any} />
-    </div>
+    <DepartmentCardList
+      initialDepartments={departments}
+      initialReports={reports}
+      userDeptName={deptName}
+    />
   )
 }

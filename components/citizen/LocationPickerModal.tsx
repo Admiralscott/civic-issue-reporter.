@@ -21,7 +21,7 @@ export default function LocationPickerModal({
   useEffect(() => {
     if (!containerRef.current) return
 
-    let map: import('leaflet').Map
+    let map: import('leaflet').Map | null = null
     let marker: import('leaflet').Marker
 
     async function init() {
@@ -76,10 +76,17 @@ export default function LocationPickerModal({
         updateAddress(pt.lat, pt.lng)
       })
 
-      setTimeout(() => map.invalidateSize(), 200)
+      setTimeout(() => map?.invalidateSize(), 200)
     }
 
     init()
+
+    return () => {
+      if (map) {
+        map.remove()
+        map = null
+      }
+    }
   }, [initialLocation])
 
   const handleConfirm = () => {

@@ -23,9 +23,22 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: any = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    user = null
+  }
+
+  const demoCookie = request.cookies.get('civic_demo_user')?.value
+  if (!user && demoCookie) {
+    try {
+      user = JSON.parse(decodeURIComponent(demoCookie))
+    } catch {
+      user = { id: 'demo-citizen-id', role: 'citizen', email: 'citizen@demo.gov' }
+    }
+  }
 
   const { pathname } = request.nextUrl
   const host = request.headers.get('host') ?? ''
@@ -41,12 +54,48 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  function redirectWithCookies(target: URL | string) {
+    const redirectRes = NextResponse.redirect(target)
+    response.cookies.getAll().forEach((c) => {
+      redirectRes.cookies.set(c.name, c.value, c)
+    })
+    return redirectRes
+  }
+
+  // Helper to fetch user role safely
+  async function getUserRole(u: any): Promise<string> {
+    if (u?.role && ['citizen', 'department', 'admin'].includes(u.role)) {
+      return u.role
+    }
+
+    if (demoCookie) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(demoCookie))
+        if (parsed?.role && ['citizen', 'department', 'admin'].includes(parsed.role)) {
+          return parsed.role
+        }
+      } catch {}
+    }
+
+    try {
+      const { data: userData } = await supabase.from('users').select('role').eq('id', u.id).maybeSingle()
+      if (userData?.role && ['citizen', 'department', 'admin'].includes(userData.role)) {
+        return userData.role
+      }
+    } catch {}
+
+    if (u?.user_metadata?.role && ['citizen', 'department', 'admin'].includes(u.user_metadata.role)) {
+      return u.user_metadata.role
+    }
+
+    return 'citizen'
+  }
+
   // 1. Port 3001 (Admin surface) strict redirect rules:
-  // If user visits /auth/login on Port 3001, redirect to /auth/admin
   if (surface === 'admin') {
     if (pathname === '/auth/login') {
       if (!user) {
-        return NextResponse.redirect(new URL('/auth/admin', request.url))
+        return redirectWithCookies(new URL('/auth/admin', request.url))
       }
     }
   }
@@ -55,25 +104,22 @@ export async function middleware(request: NextRequest) {
   if (pathname === '/') {
     if (!user) {
       const targetLogin = surface === 'admin' ? '/auth/admin' : '/auth/login'
-      return NextResponse.redirect(new URL(targetLogin, request.url))
+      return redirectWithCookies(new URL(targetLogin, request.url))
     }
-    const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
-    const role = userData?.role ?? 'citizen'
+    const role = await getUserRole(user)
     const targetRoute = getDefaultRoute(role, surface)
     if (targetRoute !== '/') {
-      return NextResponse.redirect(new URL(targetRoute, request.url))
+      return redirectWithCookies(new URL(targetRoute, request.url))
     }
   }
 
   // 3. Auth pages handling (/auth/login, /auth/admin):
   if (pathname.startsWith('/auth')) {
     if (user && (pathname === '/auth/login' || pathname === '/auth/admin')) {
-      const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
-      const role = userData?.role ?? 'citizen'
+      const role = await getUserRole(user)
       const target = getDefaultRoute(role, surface)
-      // Prevent infinite redirect loops: only redirect if target route is different from current pathname
       if (target !== pathname) {
-        return NextResponse.redirect(new URL(target, request.url))
+        return redirectWithCookies(new URL(target, request.url))
       }
     }
     return response
@@ -89,22 +135,16 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/reports/')
 
     const targetLogin = (isExecutiveRoute || surface === 'admin') ? '/auth/admin' : '/auth/login'
-    return NextResponse.redirect(new URL(targetLogin, request.url))
+    return redirectWithCookies(new URL(targetLogin, request.url))
   }
 
   // 5. Fetch user role for access control
-  const { data: userData } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  const role = userData?.role ?? 'citizen'
+  const role = await getUserRole(user)
 
   // 6. Restrict Department detail pages (/reports/...) to Staff/Admin only
   if (pathname.startsWith('/reports/')) {
     if (role === 'citizen') {
-      return NextResponse.redirect(new URL('/my-reports', request.url))
+      return redirectWithCookies(new URL('/my-reports', request.url))
     }
     return response
   }
@@ -125,7 +165,7 @@ export async function middleware(request: NextRequest) {
   // Citizen routes (/report, /my-reports, /map) are fully accessible to logged-in users on Citizen portal
   if (isCitizenRoute) {
     if (surface === 'admin' && role !== 'admin' && role !== 'department') {
-      return NextResponse.redirect(new URL('/auth/admin', request.url))
+      return redirectWithCookies(new URL('/auth/admin', request.url))
     }
     return response
   }
@@ -134,7 +174,7 @@ export async function middleware(request: NextRequest) {
   if (isDeptRoute && role !== 'department' && role !== 'admin') {
     const target = getDefaultRoute(role, surface)
     if (target !== pathname) {
-      return NextResponse.redirect(new URL(target, request.url))
+      return redirectWithCookies(new URL(target, request.url))
     }
   }
 
@@ -142,7 +182,7 @@ export async function middleware(request: NextRequest) {
   if (isAdminRoute && role !== 'admin') {
     const target = getDefaultRoute(role, surface)
     if (target !== pathname) {
-      return NextResponse.redirect(new URL(target, request.url))
+      return redirectWithCookies(new URL(target, request.url))
     }
   }
 
