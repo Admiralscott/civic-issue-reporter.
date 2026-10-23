@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import type { Report } from '@/lib/types'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { formatDistanceToNow } from '@/lib/utils/date'
@@ -10,27 +11,44 @@ import { Search, ChevronRight, ArrowUpDown } from 'lucide-react'
 
 type SortKey = 'created_at' | 'priority_score'
 
-export default function OverviewTable({
-  reports,
-  initialStatus = '',
-}: {
-  reports: (Report & { departments?: { name: string } })[]
-  initialStatus?: string
-}) {
+type ReportWithDepartment = Report & { departments?: { name: string } }
+
+export default function OverviewTable({ reports: initialReports, initialStatus = '' }: { reports: ReportWithDepartment[]; initialStatus?: string }) {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const statusFromUrl = searchParams ? (searchParams.get('status') ?? '') : initialStatus
-
+  const [reports, setReports] = useState<ReportWithDepartment[]>(initialReports)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(statusFromUrl)
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const router = useRouter()
+
+  useEffect(() => { setReports(initialReports) }, [initialReports])
+  useEffect(() => { if (searchParams) setStatusFilter(searchParams.get('status') ?? '') }, [searchParams])
 
   useEffect(() => {
-    if (searchParams) {
-      setStatusFilter(searchParams.get('status') ?? '')
-    }
-  }, [searchParams])
+    const supabase = createClient()
+    const channel = supabase
+      .channel('realtime_admin_reports')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, (payload) => {
+        setReports((current) => {
+          if (payload.eventType === 'INSERT') {
+            const next = payload.new as ReportWithDepartment
+            return current.some((r) => r.id === next.id) ? current : [next, ...current]
+          }
+          if (payload.eventType === 'UPDATE') {
+            const next = payload.new as ReportWithDepartment
+            return current.some((r) => r.id === next.id) ? current.map((r) => r.id === next.id ? { ...r, ...next } : r) : [next, ...current]
+          }
+          if (payload.eventType === 'DELETE') {
+            return current.filter((r) => r.id !== (payload.old as Report).id)
+          }
+          return current
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   const filtered = useMemo(() => {
     let r = reports
@@ -38,13 +56,7 @@ export default function OverviewTable({
       const s = search.toLowerCase()
       r = r.filter((x) => x.title.toLowerCase().includes(s) || x.address?.toLowerCase().includes(s) || x.category.includes(s))
     }
-    if (statusFilter) {
-      if (statusFilter === 'resolved') {
-        r = r.filter((x) => x.status === 'resolved' || x.status === 'closed')
-      } else {
-        r = r.filter((x) => x.status === statusFilter)
-      }
-    }
+    if (statusFilter) r = statusFilter === 'resolved' ? r.filter((x) => x.status === 'resolved' || x.status === 'closed') : r.filter((x) => x.status === statusFilter)
     return [...r].sort((a, b) => {
       const av = a[sortKey] ?? '', bv = b[sortKey] ?? ''
       return (av < bv ? -1 : av > bv ? 1 : 0) * (sortDir === 'asc' ? 1 : -1)
@@ -73,9 +85,7 @@ export default function OverviewTable({
           ))}
         </select>
       </div>
-
       <p className="text-sm text-gray-500">{filtered.length} reports</p>
-
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full">

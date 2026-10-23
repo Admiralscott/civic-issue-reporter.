@@ -13,7 +13,7 @@ import { CATEGORY_EMOJI, formatSnakeCase } from '@/lib/utils/constants'
 const FILTERS = ['all', 'pending', 'acknowledged', 'in_progress', 'resolved'] as const
 
 export default function ReportQueue({
-  reports,
+  reports: initialReports,
   userDeptId,
   userDeptName,
 }: {
@@ -21,23 +21,44 @@ export default function ReportQueue({
   userDeptId?: string | null
   userDeptName?: string | null
 }) {
+  const [reports, setReports] = useState<(Report & { departments?: { name: string } | null })[]>(initialReports)
   const [scope, setScope] = useState<'my' | 'all'>(userDeptId ? 'my' : 'all')
   const [filter, setFilter] = useState<typeof FILTERS[number]>('all')
   const router = useRouter()
 
   useEffect(() => {
+    setReports(initialReports)
+  }, [initialReports])
+
+  useEffect(() => {
     const supabase = createClient()
     const channel = supabase
       .channel('realtime_reports')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
-        router.refresh()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, (payload) => {
+        setReports((current) => {
+          if (payload.eventType === 'INSERT') {
+            const next = payload.new as (Report & { departments?: { name: string } | null })
+            return current.some((r) => r.id === next.id) ? current : [next, ...current]
+          }
+          if (payload.eventType === 'UPDATE') {
+            const next = payload.new as (Report & { departments?: { name: string } | null })
+            return current.some((r) => r.id === next.id)
+              ? current.map((r) => (r.id === next.id ? next : r))
+              : [next, ...current]
+          }
+          if (payload.eventType === 'DELETE') {
+            const old = payload.old as Report
+            return current.filter((r) => r.id !== old.id)
+          }
+          return current
+        })
       })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [router])
+  }, [])
 
   const scopedReports = useMemo(() => {
     if (scope === 'my' && userDeptId) {

@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Report } from '@/lib/types'
 import ReportCard from '@/components/citizen/ReportCard'
@@ -13,30 +12,49 @@ export default function MyReportsList({
   allReports: Report[]
   userId: string
 }) {
-  const router = useRouter()
-  const userReports = allReports.filter((r) => r.citizen_id === userId)
+  const [reports, setReports] = useState<Report[]>(allReports)
+  const userReports = useMemo(() => reports.filter((r) => r.citizen_id === userId), [reports, userId])
   const initialTab = userReports.length > 0 ? 'mine' : 'all'
   const [tab, setTab] = useState<'mine' | 'all'>(initialTab)
+
+  useEffect(() => {
+    setReports(allReports)
+  }, [allReports])
 
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
       .channel('realtime_my_reports')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
-        router.refresh()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, (payload) => {
+        setReports((current) => {
+          if (payload.eventType === 'INSERT') {
+            const next = payload.new as Report
+            return current.some((r) => r.id === next.id) ? current : [next, ...current]
+          }
+          if (payload.eventType === 'UPDATE') {
+            const next = payload.new as Report
+            return current.some((r) => r.id === next.id)
+              ? current.map((r) => (r.id === next.id ? next : r))
+              : [next, ...current]
+          }
+          if (payload.eventType === 'DELETE') {
+            const old = payload.old as Report
+            return current.filter((r) => r.id !== old.id)
+          }
+          return current
+        })
       })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [router])
+  }, [])
 
-  const displayReports = tab === 'mine' ? userReports : allReports
+  const displayReports = tab === 'mine' ? userReports : reports
 
   return (
     <div className="space-y-4">
-      {/* Tab Switcher */}
       <div className="flex items-center gap-2 p-1 bg-gray-200/80 rounded-2xl w-fit">
         <button
           type="button"
@@ -58,11 +76,10 @@ export default function MyReportsList({
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          All Community Reports ({allReports.length})
+          All Community Reports ({reports.length})
         </button>
       </div>
 
-      {/* Reports List */}
       {displayReports.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-3xl border border-gray-200 p-6 shadow-sm">
           <p className="text-gray-600 font-bold text-sm">No reports in this view</p>

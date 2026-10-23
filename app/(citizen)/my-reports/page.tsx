@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import MyReportsList from '@/components/citizen/MyReportsList'
 import Link from 'next/link'
-import { FileText, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -75,20 +75,7 @@ export default async function MyReportsPage() {
         </Link>
       </div>
 
-      {allReports.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-3xl border border-gray-200 shadow-sm">
-          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-800 font-bold text-base">No reports found</p>
-          <p className="text-gray-400 text-xs mt-1 mb-6 max-w-xs mx-auto">No civic issue reports have been submitted yet.</p>
-          <Link href="/report"
-            className="inline-flex items-center gap-2 px-5 py-3 bg-[#C4511E] hover:bg-[#A83D0C] text-white rounded-xl text-xs font-extrabold shadow-md transition">
-            <Plus className="w-4 h-4" />
-            Submit Your First Report
-          </Link>
-        </div>
-      ) : (
-        <MyReportsList allReports={allReports} userId={user.id} />
-      )}
+      <MyReportsList allReports={allReports} userId={user.id} />
     </div>
   )
 }
