@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { cookies } from 'next/headers'
 import type { ReportStatus } from '@/lib/types'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -44,6 +45,13 @@ export async function POST(
 
       if (dbUser?.role) userRole = dbUser.role
       if (dbUser?.department_id) userDeptId = dbUser.department_id
+    }
+
+    // Check for active department override cookie (used for local testing across departments)
+    const cookieStore = cookies()
+    const activeDeptCookie = cookieStore.get('civic_active_dept')?.value
+    if (activeDeptCookie && userRole === 'department') {
+      userDeptId = activeDeptCookie
     }
 
     if (userRole === 'citizen') {

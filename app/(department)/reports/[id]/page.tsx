@@ -1,8 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import StatusBadge from '@/components/shared/StatusBadge'
 import StatusUpdateModal from '@/components/department/StatusUpdateModal'
+import DepartmentLockBanner from '@/components/department/DepartmentLockBanner'
+import { CONFIGURED_DEPARTMENTS } from '@/lib/utils/department-helpers'
 import { formatDistanceToNow, format } from '@/lib/utils/date'
 import type { Report, ReportStatus } from '@/lib/types'
 
@@ -32,6 +35,15 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
     if (userData?.role) userRole = userData.role
     if (userData?.department_id) userDeptId = userData.department_id
     if ((userData as any)?.departments?.name) userDeptName = (userData as any).departments.name
+  }
+
+  // Check for active department override cookie (used for local testing across departments)
+  const cookieStore = cookies()
+  const activeDeptCookie = cookieStore.get('civic_active_dept')?.value
+  if (activeDeptCookie && userRole === 'department') {
+    userDeptId = activeDeptCookie
+    const matched = CONFIGURED_DEPARTMENTS.find((d) => d.id === activeDeptCookie)
+    if (matched) userDeptName = matched.name
   }
 
   let report: any = null
@@ -147,18 +159,15 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
         </div>
       </div>
 
-      {/* Status Update */}
+      {/* Status Update Section */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <h2 className="font-semibold text-gray-900 mb-4">Update Status</h2>
         {userRole === 'department' && userDeptId && r.assigned_dept_id && r.assigned_dept_id !== userDeptId ? (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs leading-relaxed">
-            <p className="font-bold text-amber-800 mb-1 flex items-center gap-1.5">
-              <span>🔒 Assigned to:</span> {r.departments?.name ?? 'Another Department'}
-            </p>
-            <p className="text-amber-700">
-              Your staff account is assigned to <strong>{userDeptName}</strong>. Status changes for this issue can only be performed by staff from {r.departments?.name ?? 'the assigned department'} or a Municipal Administrator.
-            </p>
-          </div>
+          <DepartmentLockBanner
+            assignedDeptId={r.assigned_dept_id}
+            assignedDeptName={r.departments?.name ?? 'Sanitation'}
+            currentStaffDeptName={userDeptName}
+          />
         ) : (
           <StatusUpdateModal reportId={r.id} currentStatus={r.status as ReportStatus} />
         )}
