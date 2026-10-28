@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CATEGORY_EMOJI, formatSnakeCase } from '@/lib/utils/constants'
-import type { Report } from '@/lib/types'
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string }> = {
   emergency: { bg: '#ef4444', border: '#991b1b' },
@@ -17,17 +15,37 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string }> = {
   other: { bg: '#6b7280', border: '#374151' },
 }
 
+const STATUS_BADGE_STYLE: Record<string, { bg: string; text: string; border: string }> = {
+  pending: { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa' },
+  acknowledged: { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
+  in_progress: { bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff' },
+  reopened: { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca' },
+}
+
+interface MapReport {
+  id: string
+  title: string
+  category: string
+  status: string
+  address: string | null
+  lat?: number
+  lng?: number
+  location?: any
+  created_at?: string
+}
+
 interface MapViewProps {
-  reports: Array<{
-    id: string
-    title: string
-    category: string
-    status: string
-    address: string | null
-    lat?: number
-    lng?: number
-    location?: any
-  }>
+  reports: MapReport[]
+}
+
+/**
+ * Filter out closed, resolved, and completed reports so only active reports
+ * (pending, acknowledged, in_progress, reopened) are displayed on the community map.
+ */
+export function isMapActiveReport(status?: string | null): boolean {
+  if (!status) return true
+  const s = status.toLowerCase()
+  return s !== 'closed' && s !== 'resolved' && s !== 'completed'
 }
 
 function parseLocation(report: any): { lat: number; lng: number } {
@@ -69,12 +87,20 @@ function parseLocation(report: any): { lat: number; lng: number } {
 export default function MapView({ reports: initialReports }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<import('leaflet').Map | null>(null)
-  const [reports, setReports] = useState(initialReports)
+  const [reports, setReports] = useState<MapReport[]>(() =>
+    initialReports.filter((r) => isMapActiveReport(r.status))
+  )
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'acknowledged'>('all')
+  const [realtimeConnected, setRealtimeConnected] = useState(false)
 
   useEffect(() => {
-    setReports(initialReports)
+    setReports(initialReports.filter((r) => isMapActiveReport(r.status)))
   }, [initialReports])
 
+  // Realtime subscription for map updates:
+  // - Adds new active reports (e.g. pending submissions)
+  // - Updates active reports
+  // - Automatically REMOVES reports that transition to closed or resolved/completed!
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -82,12 +108,23 @@ export default function MapView({ reports: initialReports }: MapViewProps) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, (payload) => {
         setReports((current) => {
           if (payload.eventType === 'INSERT') {
-            const next = payload.new as any
+            const next = payload.new as MapReport
+            // Do not show on map if inserted with closed/resolved status
+            if (!isMapActiveReport(next.status)) {
+              return current
+            }
             return current.some((r) => r.id === next.id) ? current : [next, ...current]
           }
           if (payload.eventType === 'UPDATE') {
-            const next = payload.new as any
-            return current.some((r) => r.id === next.id) ? current.map((r) => r.id === next.id ? { ...r, ...next } : r) : [next, ...current]
+            const next = payload.new as MapReport
+            // If the report was resolved or closed, remove it immediately from map!
+            if (!isMapActiveReport(next.status)) {
+              return current.filter((r) => r.id !== next.id)
+            }
+            // Otherwise keep/update active report
+            return current.some((r) => r.id === next.id)
+              ? current.map((r) => (r.id === next.id ? { ...r, ...next } : r))
+              : [next, ...current]
           }
           if (payload.eventType === 'DELETE') {
             return current.filter((r) => r.id !== (payload.old as any).id)
@@ -95,12 +132,33 @@ export default function MapView({ reports: initialReports }: MapViewProps) {
           return current
         })
       })
-      .subscribe()
+      .subscribe((status) => {
+        setRealtimeConnected(status === 'SUBSCRIBED')
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[MapView] Realtime channel status:', status)
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
     }
   }, [])
+
+  // Filter reports displayed based on the selected status filter button
+  const displayedReports = useMemo(() => {
+    return reports.filter((r) => {
+      if (!isMapActiveReport(r.status)) return false
+      const s = (r.status || '').toLowerCase()
+      if (statusFilter === 'pending') return s === 'pending'
+      if (statusFilter === 'in_progress') return s === 'in_progress'
+      if (statusFilter === 'acknowledged') return s === 'acknowledged'
+      return true
+    })
+  }, [reports, statusFilter])
+
+  const pendingCount = reports.filter((r) => (r.status || '').toLowerCase() === 'pending').length
+  const inProgressCount = reports.filter((r) => (r.status || '').toLowerCase() === 'in_progress').length
+  const ackCount = reports.filter((r) => (r.status || '').toLowerCase() === 'acknowledged').length
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -117,6 +175,7 @@ export default function MapView({ reports: initialReports }: MapViewProps) {
         mapRef.current = map
       }
 
+      // Remove existing marker layers
       map.eachLayer((layer) => {
         if (layer instanceof L.Marker || layer instanceof L.Circle || layer instanceof L.CircleMarker) {
           map?.removeLayer(layer)
@@ -125,20 +184,22 @@ export default function MapView({ reports: initialReports }: MapViewProps) {
 
       const bounds: import('leaflet').LatLngExpression[] = []
 
-      reports.forEach((report) => {
+      displayedReports.forEach((report) => {
         const coords = parseLocation(report)
         const { lat, lng } = coords
         const colors = CATEGORY_COLORS[report.category] ?? CATEGORY_COLORS.other
         const emoji = CATEGORY_EMOJI[report.category] ?? '📋'
+        const statusKey = (report.status || 'pending').toLowerCase()
+        const badgeStyle = STATUS_BADGE_STYLE[statusKey] ?? { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }
 
         bounds.push([lat, lng])
 
-        // Outer Glow Circle
+        // Outer Glow Circle indicating issue priority/radius
         L.circle([lat, lng], {
           radius: 120,
           color: colors.bg,
           fillColor: colors.bg,
-          fillOpacity: 0.3,
+          fillOpacity: 0.25,
           weight: 1.5,
         }).addTo(map!)
 
@@ -151,20 +212,20 @@ export default function MapView({ reports: initialReports }: MapViewProps) {
           fillOpacity: 0.95,
         })
           .bindPopup(`
-            <div style="font-family:sans-serif;font-size:13px;padding:2px;min-width:180px">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-                <span style="font-size:16px">${emoji}</span>
-                <strong style="color:#111827;font-size:14px">${report.title}</strong>
+            <div style="font-family:system-ui,-apple-system,sans-serif;font-size:13px;padding:4px;min-width:200px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                <span style="font-size:18px">${emoji}</span>
+                <strong style="color:#111827;font-size:14px;line-height:1.2">${report.title}</strong>
               </div>
-              <div style="margin-bottom:6px">
-                <span style="text-transform:capitalize;color:#4b5563;font-weight:500">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="text-transform:capitalize;color:#4b5563;font-size:12px;font-weight:600">
                  ${formatSnakeCase(report.category)}
                 </span>
-                <span style="background:#e2e8f0;color:#1e293b;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:600;margin-left:6px">
-                  ${report.status.toUpperCase()}
+                <span style="background:${badgeStyle.bg};color:${badgeStyle.text};border:1px solid ${badgeStyle.border};border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em">
+                  ${formatSnakeCase(report.status)}
                 </span>
               </div>
-              ${report.address ? `<div style="color:#6b7280;font-size:11px">📍 ${report.address}</div>` : ''}
+              ${report.address ? `<div style="color:#6b7280;font-size:11px;line-height:1.3;padding-top:4px;border-top:1px solid #f3f4f6">📍 ${report.address}</div>` : ''}
             </div>
           `)
           .addTo(map!)
@@ -179,7 +240,74 @@ export default function MapView({ reports: initialReports }: MapViewProps) {
       }, 250)
     }
     init()
-  }, [reports])
+  }, [displayedReports])
 
-  return <div ref={containerRef} className="w-full h-[65vh] min-h-[420px] rounded-2xl overflow-hidden border border-gray-200 shadow-md" />
+  return (
+    <div className="space-y-3">
+      {/* Active Status Filters & Realtime Status Indicator */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-white p-2.5 rounded-xl border border-gray-200">
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          <span className="text-xs font-semibold text-gray-500 mr-1">Filter:</span>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              statusFilter === 'all'
+                ? 'bg-gray-900 text-white shadow-xs'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            All Active ({reports.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('pending')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              statusFilter === 'pending'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            Pending ({pendingCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('in_progress')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              statusFilter === 'in_progress'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200'
+            }`}
+          >
+            In Progress ({inProgressCount})
+          </button>
+          {ackCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter('acknowledged')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                statusFilter === 'acknowledged'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              Acknowledged ({ackCount})
+            </button>
+          )}
+        </div>
+
+        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border self-start sm:self-auto ${
+          realtimeConnected
+            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+            : 'text-gray-500 bg-gray-50 border-gray-200'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+          <span>{realtimeConnected ? 'Map Live Sync' : 'Connecting…'}</span>
+        </div>
+      </div>
+
+      {/* Leaflet Map Canvas */}
+      <div ref={containerRef} className="w-full h-[65vh] min-h-[420px] rounded-2xl overflow-hidden border border-gray-200 shadow-md" />
+    </div>
+  )
 }

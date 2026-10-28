@@ -17,27 +17,45 @@ const MapView = nextDynamic(() => import('@/components/citizen/MapView'), {
   ),
 })
 
+/**
+ * Filter condition: Only show active issues (pending, in_progress, acknowledged, reopened, etc.)
+ * Strictly exclude 'closed', 'resolved', and 'completed' reports from the map.
+ */
+function isMapActiveReport(status?: string | null): boolean {
+  if (!status) return true
+  const s = status.toLowerCase()
+  return s !== 'closed' && s !== 'resolved' && s !== 'completed'
+}
+
 export default async function MapPage() {
   const supabase = createClient()
   let mapReports: any[] = []
+  let queryError: string | null = null
 
   try {
     const { data: reports, error } = await supabase
       .from('reports')
       .select('id, title, category, status, address, location, created_at')
+      .not('status', 'in', '("closed","resolved","completed")')
       .order('created_at', { ascending: false })
       .limit(300)
 
-    if (error || !reports) {
-      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-      mapReports = MOCK_REPORTS
+    if (error) {
+      console.error('[MapPage] Supabase query failed:', error.code, error.message)
+      queryError = error.message
+      mapReports = []
     } else {
-      mapReports = reports
+      // In-memory filter as guarantee against closed / resolved / completed reports
+      mapReports = (reports ?? []).filter((r) => isMapActiveReport(r.status))
     }
-  } catch {
-    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-    mapReports = MOCK_REPORTS
+  } catch (err: any) {
+    console.error('[MapPage] Supabase query exception:', err)
+    queryError = err?.message ?? 'Failed to query database'
+    mapReports = []
   }
+
+  const pendingCount = mapReports.filter((r) => (r.status || '').toLowerCase() === 'pending').length
+  const inProgressCount = mapReports.filter((r) => ['in_progress', 'acknowledged'].includes((r.status || '').toLowerCase())).length
 
   return (
     <div>
@@ -51,11 +69,22 @@ export default async function MapPage() {
         </Link>
       </div>
 
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Community Map</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {mapReports.length} active report(s) plotted on the map
-        </p>
+      {queryError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-xs font-semibold text-red-800">
+          ⚠️ Unable to load live map reports: {queryError}. Check Supabase connection and RLS policies.
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Community Map</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Displaying <strong className="text-gray-800">{mapReports.length}</strong> active civic issue(s) ({pendingCount} pending, {inProgressCount} in progress). Closed and resolved cases are excluded.
+          </p>
+        </div>
+        <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-xl text-xs font-medium text-amber-800 self-start sm:self-auto">
+          <span>Active Issues Only (Excludes Closed &amp; Resolved)</span>
+        </div>
       </div>
 
       <MapView reports={mapReports as any} />
@@ -70,6 +99,7 @@ export default async function MapPage() {
           { color: '#22c55e', label: '🗑️ Garbage' },
           { color: '#a855f7', label: '🎨 Graffiti' },
           { color: '#eab308', label: '📢 Noise' },
+          { color: '#6b7280', label: '📋 Other' },
         ].map(({ color, label }) => (
           <div key={label} className="flex items-center gap-1.5">
             <div className="w-3.5 h-3.5 rounded-full border border-white shadow-sm" style={{ backgroundColor: color }} />
