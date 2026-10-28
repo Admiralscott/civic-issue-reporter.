@@ -1,8 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { RefreshCw, Shield, Lock } from 'lucide-react'
+import { RefreshCw, Lock } from 'lucide-react'
 
 interface Props {
   assignedDeptId: string
@@ -43,14 +42,6 @@ export default function DepartmentLockBanner({
           <RefreshCw className="w-3.5 h-3.5" />
           <span>Switch Staff Role to {assignedDeptName} (Test Mode)</span>
         </button>
-
-        <Link
-          href="/auth/admin"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-bold transition shadow-xs"
-        >
-          <Shield className="w-3.5 h-3.5" />
-          <span>Sign In as Admin</span>
-        </Link>
       </div>
     </div>
   )
