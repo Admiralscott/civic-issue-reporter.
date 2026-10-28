@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { formatDistanceToNow } from '@/lib/utils/date'
+import ReportTimelineModal from '@/components/shared/ReportTimelineModal'
 import {
   Building2,
   Users,
@@ -45,6 +46,7 @@ export default function GovDashboardTemplate({
   resolvedReports = [],
 }: GovDashboardProps) {
   const [showResolvedModal, setShowResolvedModal] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<any | null>(null)
 
   return (
     <div className="space-y-6 font-sans">
@@ -52,7 +54,7 @@ export default function GovDashboardTemplate({
       <div className="flex items-center justify-between bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm text-sm">
         <div className="flex items-center gap-2">
           <span className="text-xl font-bold text-gray-800">Dashboard</span>
-          <span className="text-gray-400 font-light text-xs">Biometric & Civic Issue Management System</span>
+          <span className="text-gray-400 font-light text-xs">Biometric &amp; Civic Issue Management System</span>
         </div>
         <div className="flex items-center gap-1 text-xs text-gray-500 font-medium">
           <Building2 className="w-3.5 h-3.5" /> Dashboard
@@ -182,7 +184,7 @@ export default function GovDashboardTemplate({
         <div className="bg-white rounded-lg border border-gray-200 shadow-md p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
             <div className="flex items-center gap-2 text-gray-700 font-bold text-sm">
-              <CheckCircle2 className="w-4 h-4 text-green-600" /> Resolution & System Metrics
+              <CheckCircle2 className="w-4 h-4 text-green-600" /> Resolution &amp; System Metrics
             </div>
             <div className="bg-[#00a65a] text-white p-1 rounded cursor-pointer hover:bg-green-600">
               <span className="block w-3.5 h-3.5 leading-none text-center font-bold text-xs">-</span>
@@ -250,7 +252,7 @@ export default function GovDashboardTemplate({
                 <div>
                   <h3 className="text-lg font-bold">Resolved Issue Reports</h3>
                   <p className="text-xs text-green-100">
-                    Displaying {resolvedReports.length} officially resolved & closed reports
+                    Displaying {resolvedReports.length} officially resolved &amp; closed reports
                   </p>
                 </div>
               </div>
@@ -306,12 +308,13 @@ export default function GovDashboardTemplate({
                       </div>
                     </div>
 
-                    <Link
-                      href={`/reports/${r.id}`}
-                      className="px-3.5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 self-end sm:self-center shadow-xs"
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReport(r)}
+                      className="px-3.5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 self-end sm:self-center shadow-xs cursor-pointer"
                     >
                       View Report <ChevronRight className="w-3.5 h-3.5" />
-                    </Link>
+                    </button>
                   </div>
                 ))
               )}
@@ -332,6 +335,14 @@ export default function GovDashboardTemplate({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Report Timeline & Status Modal */}
+      {selectedReport && (
+        <ReportTimelineModal
+          report={selectedReport}
+          onClose={() => setSelectedReport(null)}
+        />
       )}
     </div>
   )
