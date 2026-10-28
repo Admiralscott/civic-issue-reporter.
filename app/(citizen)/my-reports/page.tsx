@@ -20,34 +20,29 @@ export default async function MyReportsPage() {
   }
 
   let allReports: any[] = []
-  let connectionWarning = false
+  let queryError: string | null = null
 
-  try {
-    const { data: reports, error } = await supabase
-      .from('reports')
-      .select('*')
-      .order('created_at', { ascending: false })
+  const { data: reports, error } = await supabase
+    .from('reports')
+    .select('*')
+    .order('created_at', { ascending: false })
 
-    if (error || !reports) {
-      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-      allReports = MOCK_REPORTS
-      connectionWarning = true
-    } else {
-      allReports = reports
-    }
-  } catch {
-    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-    allReports = MOCK_REPORTS
-    connectionWarning = true
+  if (error) {
+    // Log the real Supabase error for diagnosis; show it in the UI in dev.
+    console.error('[MyReports] Supabase query failed:', error.code, error.message)
+    queryError = error.message
+    allReports = []
+  } else {
+    allReports = reports ?? []
   }
 
   return (
     <div>
-      {/* Connection warning banner */}
-      {connectionWarning && (
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-semibold text-amber-800 flex items-center justify-between shadow-xs">
-          <span>⚠️ Unable to reach live database. Showing fallback community issues.</span>
-          <span className="text-[10px] text-amber-600 underline cursor-pointer" title="Check Supabase URL & database connection in .env.local">Check DB config</span>
+      {/* Query error banner — shown when the DB query itself fails */}
+      {queryError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-xs font-semibold text-red-800 flex items-center justify-between shadow-xs">
+          <span>⚠️ Database query failed: {queryError}</span>
+          <span className="text-[10px] text-red-600" title="Check Supabase URL, anon key, and RLS policies in .env.local">Check DB config</span>
         </div>
       )}
 
@@ -75,7 +70,7 @@ export default async function MyReportsPage() {
         </Link>
       </div>
 
-      <MyReportsList allReports={allReports} userId={user.id} />
+      <MyReportsList allReports={allReports} userId={user.id} queryError={queryError} />
     </div>
   )
 }

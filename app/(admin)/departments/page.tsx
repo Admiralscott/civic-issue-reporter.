@@ -11,10 +11,14 @@ export const metadata: Metadata = { title: 'Departments Oversight' }
 export default async function DepartmentsPage() {
   const supabase = createClient()
 
-  const { data: departments } = await supabase
+  const { data: departments, error } = await supabase
     .from('departments')
     .select('*, reports(*, status_history(*, users(full_name)))')
     .order('name')
+
+  if (error) {
+    console.error('[Admin/Departments] Supabase query failed:', error.code, error.message)
+  }
 
   return (
     <div className="space-y-4">
@@ -27,6 +31,12 @@ export default async function DepartmentsPage() {
           ← Back to Overview
         </Link>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 font-medium">
+          ⚠️ Failed to load departments from the database: {error.message}. Check the Supabase connection and RLS policies.
+        </div>
+      )}
 
       <DepartmentManager departments={(departments ?? []) as any} />
     </div>

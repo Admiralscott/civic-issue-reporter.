@@ -18,23 +18,20 @@ export default async function OverviewPage({
   const supabase = createClient()
 
   let allReports: any[] = []
+  let queryError: string | null = null
 
-  try {
-    const { data: reports, error } = await supabase
-      .from('reports')
-      .select('*, departments(name)')
-      .order('created_at', { ascending: false })
-      .limit(500)
+  const { data: reports, error } = await supabase
+    .from('reports')
+    .select('*, departments(name)')
+    .order('created_at', { ascending: false })
+    .limit(500)
 
-    if (error || !reports) {
-      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-      allReports = MOCK_REPORTS
-    } else {
-      allReports = reports
-    }
-  } catch {
-    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-    allReports = MOCK_REPORTS
+  if (error) {
+    console.error('[Admin/Overview] Supabase query failed:', error.code, error.message)
+    queryError = error.message
+    allReports = []
+  } else {
+    allReports = reports ?? []
   }
 
   const totalReports = allReports.length
@@ -66,6 +63,12 @@ export default async function OverviewPage({
 
   return (
     <div className="space-y-6">
+      {queryError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs font-semibold text-red-800">
+          ⚠️ Failed to load reports from database: {queryError}. Check Supabase connection, project URL, and RLS policies.
+        </div>
+      )}
+
       <GovDashboardTemplate
         metrics={{
           totalReports: totalReports ?? 0,

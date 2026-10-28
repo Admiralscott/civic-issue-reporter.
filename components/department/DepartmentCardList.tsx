@@ -40,8 +40,12 @@ export default function DepartmentCardList({
   )
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [realtimeConnected, setRealtimeConnected] = useState(false)
 
-  // Realtime subscription for live reports and status updates
+  // Realtime subscription for live reports and status updates.
+  // FIX: always call setReports(data) when data is non-null, even if the array is empty.
+  //      The old `if (data && data.length > 0)` guard preserved stale state when the result
+  //      was legitimately empty (e.g. all reports deleted, or RLS filtered all rows).
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -51,16 +55,21 @@ export default function DepartmentCardList({
         { event: '*', schema: 'public', table: 'reports' },
         async () => {
           try {
-            const { data } = await supabase
+            const { data, error: fetchErr } = await supabase
               .from('reports')
               .select('*, departments(name)')
               .order('priority_score', { ascending: false })
 
-            if (data && data.length > 0) {
+            if (fetchErr) {
+              console.error('[DepartmentCardList] Realtime reports refetch error:', fetchErr.code, fetchErr.message)
+              return
+            }
+            // Apply even if data is an empty array.
+            if (data !== null) {
               setReports(data)
             }
-          } catch {
-            // Keep existing state on transient fetch error
+          } catch (err) {
+            console.error('[DepartmentCardList] Realtime reports refetch exception:', err)
           }
           router.refresh()
         }
@@ -70,15 +79,26 @@ export default function DepartmentCardList({
         { event: '*', schema: 'public', table: 'departments' },
         async () => {
           try {
-            const { data } = await supabase.from('departments').select('*').order('name')
-            if (data && data.length > 0) {
-              setDepartments(data)
+            const { data, error: fetchErr } = await supabase.from('departments').select('*').order('name')
+            if (fetchErr) {
+              console.error('[DepartmentCardList] Realtime departments refetch error:', fetchErr.code, fetchErr.message)
+              return
             }
-          } catch {}
+            if (data !== null) {
+              setDepartments(data.length > 0 ? data : CONFIGURED_DEPARTMENTS)
+            }
+          } catch (err) {
+            console.error('[DepartmentCardList] Realtime departments refetch exception:', err)
+          }
           router.refresh()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        setRealtimeConnected(status === 'SUBSCRIBED')
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[DepartmentCardList] Realtime channel status:', status)
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -96,10 +116,16 @@ export default function DepartmentCardList({
         supabase.from('reports').select('*, departments(name)').order('priority_score', { ascending: false }),
       ])
 
-      if (deptRes.data && deptRes.data.length > 0) {
-        setDepartments(deptRes.data)
+      if (deptRes.error) {
+        console.error('[DepartmentCardList] Manual refresh departments error:', deptRes.error.message)
+      } else if (deptRes.data !== null) {
+        setDepartments(deptRes.data.length > 0 ? deptRes.data : CONFIGURED_DEPARTMENTS)
       }
-      if (repRes.data && repRes.data.length > 0) {
+
+      if (repRes.error) {
+        console.error('[DepartmentCardList] Manual refresh reports error:', repRes.error.message)
+        setError(repRes.error.message)
+      } else if (repRes.data !== null) {
         setReports(repRes.data)
       }
     } catch (err: any) {
@@ -110,7 +136,7 @@ export default function DepartmentCardList({
     }
   }, [router])
 
-  // Identify unassigned reports (reports not belonging to any of the 4 configured departments)
+  // Identify unassigned reports (reports not belonging to any of the configured departments)
   const unassignedReports = useMemo(() => {
     return reports.filter((r) => {
       return !departments.some((dept) => isReportInDepartment(r, dept))
@@ -142,10 +168,14 @@ export default function DepartmentCardList({
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {/* Live indicator badge */}
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Realtime Live</span>
+          {/* Live indicator badge — reflects actual WebSocket connection state */}
+          <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border shadow-2xs ${
+            realtimeConnected
+              ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+              : 'text-gray-500 bg-gray-50 border-gray-200'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+            <span>{realtimeConnected ? 'Realtime Live' : 'Connecting…'}</span>
           </div>
 
           {/* Refresh button */}

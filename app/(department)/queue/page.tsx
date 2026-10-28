@@ -51,44 +51,47 @@ export default async function QueuePage({
   }
 
   let departments: Department[] = []
-  try {
-    const { data: dbDepts, error: deptError } = await supabase
-      .from('departments')
-      .select('*')
-      .order('name')
+  let deptError: string | null = null
+  const { data: dbDepts, error: deptQueryErr } = await supabase
+    .from('departments')
+    .select('*')
+    .order('name')
 
-    if (deptError || !dbDepts || dbDepts.length === 0) {
-      departments = CONFIGURED_DEPARTMENTS
-    } else {
-      departments = dbDepts
-    }
-  } catch {
-    departments = CONFIGURED_DEPARTMENTS
+  if (deptQueryErr) {
+    console.error('[QueuePage] Departments query failed:', deptQueryErr.code, deptQueryErr.message)
+    deptError = deptQueryErr.message
+    departments = CONFIGURED_DEPARTMENTS // fallback to hardcoded list so the UI isn't empty
+  } else {
+    departments = dbDepts && dbDepts.length > 0 ? dbDepts : CONFIGURED_DEPARTMENTS
   }
 
   let reports: any[] = []
-  try {
-    const { data: dbReports, error: repError } = await supabase
-      .from('reports')
-      .select('*, departments(name)')
-      .order('priority_score', { ascending: false })
+  let reportsError: string | null = null
+  const { data: dbReports, error: repQueryErr } = await supabase
+    .from('reports')
+    .select('*, departments(name)')
+    .order('priority_score', { ascending: false })
 
-    if (repError || !dbReports) {
-      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-      reports = MOCK_REPORTS
-    } else {
-      reports = dbReports
-    }
-  } catch {
-    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-    reports = MOCK_REPORTS
+  if (repQueryErr) {
+    console.error('[QueuePage] Reports query failed:', repQueryErr.code, repQueryErr.message)
+    reportsError = repQueryErr.message
+    reports = []
+  } else {
+    reports = dbReports ?? []
   }
 
   return (
-    <DepartmentCardList
-      initialDepartments={departments}
-      initialReports={reports}
-      userDeptName={deptName}
-    />
+    <>
+      {(deptError || reportsError) && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-xs font-semibold text-red-800">
+          ⚠️ Database query failed{deptError ? ` (departments: ${deptError})` : ''}{reportsError ? ` (reports: ${reportsError})` : ''}. Check Supabase connection and RLS policies.
+        </div>
+      )}
+      <DepartmentCardList
+        initialDepartments={departments}
+        initialReports={reports}
+        userDeptName={deptName}
+      />
+    </>
   )
 }

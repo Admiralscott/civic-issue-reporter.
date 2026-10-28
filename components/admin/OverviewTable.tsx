@@ -46,7 +46,11 @@ export default function OverviewTable({ reports: initialReports, initialStatus =
           return current
         })
       })
-      .subscribe()
+      .subscribe((status) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[OverviewTable] Realtime channel status:', status)
+        }
+      })
     return () => { supabase.removeChannel(channel) }
   }, [])
 

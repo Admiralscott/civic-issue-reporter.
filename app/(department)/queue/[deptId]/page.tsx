@@ -39,20 +39,18 @@ export default async function DepartmentQueuePage({
   let department: Department | null = null
 
   if (!isUnassigned) {
-    try {
-      const { data, error } = await supabase
-        .from('departments')
-        .select('*')
-        .eq('id', params.deptId)
-        .maybeSingle()
+    const { data, error } = await supabase
+      .from('departments')
+      .select('*')
+      .eq('id', params.deptId)
+      .maybeSingle()
 
-      if (error || !data) {
-        department = CONFIGURED_DEPARTMENTS.find((d) => d.id === params.deptId) || null
-      } else {
-        department = data
-      }
-    } catch {
+    if (error) {
+      console.error('[DeptQueuePage] Department query failed:', error.code, error.message)
+      // Fall back to the in-memory configured list
       department = CONFIGURED_DEPARTMENTS.find((d) => d.id === params.deptId) || null
+    } else {
+      department = data ?? (CONFIGURED_DEPARTMENTS.find((d) => d.id === params.deptId) || null)
     }
 
     if (!department) {
@@ -74,28 +72,33 @@ export default async function DepartmentQueuePage({
   }
 
   let reports: any[] = []
-  try {
-    const { data: dbReports, error: repError } = await supabase
-      .from('reports')
-      .select('*, departments(name)')
-      .order('priority_score', { ascending: false })
+  let reportsError: string | null = null
 
-    if (repError || !dbReports) {
-      const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-      reports = MOCK_REPORTS
-    } else {
-      reports = dbReports
-    }
-  } catch {
-    const { MOCK_REPORTS } = await import('@/lib/utils/mock-data')
-    reports = MOCK_REPORTS
+  const { data: dbReports, error: repQueryErr } = await supabase
+    .from('reports')
+    .select('*, departments(name)')
+    .order('priority_score', { ascending: false })
+
+  if (repQueryErr) {
+    console.error('[DeptQueuePage] Reports query failed:', repQueryErr.code, repQueryErr.message)
+    reportsError = repQueryErr.message
+    reports = []
+  } else {
+    reports = dbReports ?? []
   }
 
   return (
-    <DepartmentIssueQueue
-      department={department}
-      initialReports={reports}
-      isUnassigned={isUnassigned}
-    />
+    <>
+      {reportsError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-xs font-semibold text-red-800">
+          ⚠️ Failed to load reports from database: {reportsError}. Check Supabase connection and RLS policies.
+        </div>
+      )}
+      <DepartmentIssueQueue
+        department={department}
+        initialReports={reports}
+        isUnassigned={isUnassigned}
+      />
+    </>
   )
 }

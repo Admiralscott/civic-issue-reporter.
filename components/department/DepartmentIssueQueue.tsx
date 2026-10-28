@@ -41,8 +41,11 @@ export default function DepartmentIssueQueue({
   )
   const [filter, setFilter] = useState<typeof FILTERS[number]>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [realtimeConnected, setRealtimeConnected] = useState(false)
 
-  // Realtime updates subscription
+  // Realtime subscription — refetch all reports on any change to the reports table.
+  // FIX: always apply setReports(data) when data is non-null, even if the array is empty.
+  //       Previously `if (data && data.length > 0)` would preserve stale state on valid empty results.
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -52,19 +55,32 @@ export default function DepartmentIssueQueue({
         { event: '*', schema: 'public', table: 'reports' },
         async () => {
           try {
-            const { data } = await supabase
+            const { data, error } = await supabase
               .from('reports')
               .select('*, departments(name)')
               .order('priority_score', { ascending: false })
 
-            if (data && data.length > 0) {
+            if (error) {
+              // Log the real error — do not silently swallow it.
+              console.error('[DepartmentIssueQueue] Realtime refetch error:', error.code, error.message)
+              return
+            }
+            // Apply even if data is an empty array — that is a valid state.
+            if (data !== null) {
               setReports(data)
             }
-          } catch {}
+          } catch (err) {
+            console.error('[DepartmentIssueQueue] Realtime refetch exception:', err)
+          }
           router.refresh()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        setRealtimeConnected(status === 'SUBSCRIBED')
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[DepartmentIssueQueue] Realtime channel status:', status)
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -140,9 +156,13 @@ export default function DepartmentIssueQueue({
           <span>Back to All Departments</span>
         </Link>
 
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 shadow-2xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Realtime Live</span>
+        <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border shadow-2xs ${
+          realtimeConnected
+            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+            : 'text-gray-500 bg-gray-50 border-gray-200'
+        }`}>
+          <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+          <span>{realtimeConnected ? 'Realtime Live' : 'Connecting…'}</span>
         </div>
       </div>
 

@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { enqueueReport, isOnline } from '@/lib/utils/offline-queue'
 import { computePriorityScore } from '@/lib/utils/priority'
-import { CATEGORY_DEPT_ID, CATEGORY_DEPT_NAME, formatSnakeCase } from '@/lib/utils/constants'
+import { CATEGORY_DEPT_NAME, formatSnakeCase } from '@/lib/utils/constants'
 import { MapPin, Camera, Loader2, CheckCircle, WifiOff, Map as MapIcon, X } from 'lucide-react'
 import type { ReportCategory } from '@/lib/types'
 
@@ -24,6 +24,22 @@ const CATEGORIES: { value: ReportCategory; label: string; emoji: string }[] = [
   { value: 'emergency',    label: 'Emergency',      emoji: '🚨' },
   { value: 'other',        label: 'Other',          emoji: '📋' },
 ]
+
+/**
+ * Maps each report category to the real UUID of the department in the Supabase database.
+ * IMPORTANT: This must match the `id` column in the `departments` table.
+ * Do NOT use the legacy string IDs (e.g. 'dept-water') — those are not stored in the DB.
+ */
+const CATEGORY_TO_DEPT_UUID: Record<ReportCategory, string> = {
+  water_leak:  'a11349e6-75f9-4787-9805-529bcd3a65ab', // Water & Utilities
+  electrical:  'a11349e6-75f9-4787-9805-529bcd3a65ab', // Water & Utilities
+  garbage:     '4c021fbc-a68c-4fe0-be25-22453f443d90', // Sanitation
+  graffiti:    '4c021fbc-a68c-4fe0-be25-22453f443d90', // Sanitation
+  noise:       '486112af-ac9a-4e20-b9dc-6f77e6dac235', // Public Safety
+  emergency:   '486112af-ac9a-4e20-b9dc-6f77e6dac235', // Public Safety
+  other:       '486112af-ac9a-4e20-b9dc-6f77e6dac235', // Public Safety
+  road_damage: 'a0241d48-0fe8-4e3f-aceb-16a65dea7d9b', // Road & Infra
+}
 
 export default function ReportForm() {
   const [title, setTitle] = useState('')
@@ -142,10 +158,16 @@ export default function ReportForm() {
 
     try {
       const { getClientUser } = await import('@/lib/client-auth')
-      const { addMockReport } = await import('@/lib/utils/mock-data')
 
       const user = await getClientUser()
-      const userId = user?.id ?? 'demo-citizen-id'
+      // If we could not obtain a real authenticated user, stop here rather than
+      // inserting with a fake demo ID that won't match any real user record.
+      if (!user?.id || user.id === 'demo-citizen-id') {
+        setError('You must be signed in to submit a report. Please log in and try again.')
+        setLoading(false)
+        return
+      }
+      const userId = user.id
 
       const photoUrls: string[] = []
 
@@ -159,58 +181,41 @@ export default function ReportForm() {
             const { data: { publicUrl } } = supabase.storage.from('report-photos').getPublicUrl(path)
             photoUrls.push(publicUrl)
           } else {
-            console.error('Photo upload failed:', uploadErr.message)
+            console.error('[ReportForm] Photo upload failed:', uploadErr.message)
           }
         } catch (err) {
-          console.error('Photo upload error:', err)
+          console.error('[ReportForm] Photo upload error:', err)
         }
       }
 
       const deptName = CATEGORY_DEPT_NAME[category]
-      const deptId = CATEGORY_DEPT_ID[category]
+      // Use real UUID from the departments table — not the legacy string aliases.
+      const deptId = CATEGORY_TO_DEPT_UUID[category]
 
       const reportTitle = title || `${formatSnakeCase(category).toUpperCase()} Report`
       const reportDesc = description || 'Civic issue report submitted by citizen.'
 
-      const newReportData = {
-        id: `report-${Date.now()}`,
+      const { data: inserted, error: insertErr } = await supabase.from('reports').insert({
         citizen_id: userId,
         title: reportTitle,
         description: reportDesc,
         category,
-        status: 'pending' as const,
-        priority_score: computePriorityScore({ category, title: reportTitle, description: reportDesc }),
-        location: `POINT(${finalLocation.lng} ${finalLocation.lat})`,
-        address: address || 'Srivilliputhur, Virudhunagar, Tamil Nadu',
-        assigned_dept_id: deptId,
         photo_urls: photoUrls,
-        resolution_photo_url: null,
-        upvote_count: 1,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        resolved_at: null,
-        departments: { name: deptName },
+        address: address || 'Srivilliputhur, Virudhunagar, Tamil Nadu',
+        location: `POINT(${finalLocation.lng} ${finalLocation.lat})`,
+        assigned_dept_id: deptId,
+      }).select().single()
+
+      if (insertErr) {
+        // Show the real error — never silently swallow DB failures.
+        console.error('[ReportForm] DB insert failed:', insertErr.code, insertErr.message, insertErr.details)
+        setError(`Failed to save report: ${insertErr.message}`)
+        setLoading(false)
+        return
       }
 
-      try {
-        const { error: insertErr } = await supabase.from('reports').insert({
-          citizen_id: userId,
-          title: newReportData.title,
-          description: newReportData.description,
-          category: newReportData.category,
-          photo_urls: photoUrls,
-          address: newReportData.address,
-          location: newReportData.location,
-          assigned_dept_id: deptId,
-        })
-        if (insertErr) {
-          console.error('DB insert failed, falling back to mock:', insertErr.message)
-          addMockReport(newReportData)
-        }
-        // On success, data comes from DB — no mock needed
-      } catch (err) {
-        console.error('DB insert error, falling back to mock:', err)
-        addMockReport(newReportData)
+      if (process.env.NODE_ENV === 'development') {
+        console.info('[ReportForm] Report inserted successfully, id:', inserted?.id, 'dept_id:', deptId)
       }
 
       setSuccess(true)
