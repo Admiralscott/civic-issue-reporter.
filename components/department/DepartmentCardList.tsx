@@ -10,6 +10,7 @@ import {
   isReportInDepartment,
   calculateDepartmentStats,
   CONFIGURED_DEPARTMENTS,
+  getDepartmentTheme,
 } from '@/lib/utils/department-helpers'
 import {
   Building2,
@@ -230,22 +231,27 @@ export default function DepartmentCardList({
       <div className="space-y-4">
         {departments.map((dept) => {
           const stats = calculateDepartmentStats(dept, reports)
+          const theme = getDepartmentTheme(dept.name || dept.id)
 
           return (
             <div
               key={dept.id}
               onClick={() => router.push(`/queue/${dept.id}`)}
-              className="group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md hover:border-purple-300 transition duration-150 cursor-pointer"
+              style={theme.cardStyle}
+              className="group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition duration-150 cursor-pointer"
             >
               <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 {/* Left side: Icon, Department Name, Zone, Description, Categories */}
                 <div className="flex items-start gap-3.5">
-                  <div className="p-3 bg-purple-100 text-purple-700 rounded-xl mt-0.5 group-hover:bg-purple-200 transition">
-                    <Building2 className="w-6 h-6" />
+                  <div
+                    style={theme.iconStyle}
+                    className="p-3 rounded-xl mt-0.5 shadow-sm flex items-center justify-center transition-transform group-hover:scale-105"
+                  >
+                    <Building2 className="w-6 h-6 text-white" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-gray-900 group-hover:text-purple-900 transition">
+                      <h2 className="text-lg font-bold text-gray-900 transition">
                         {dept.name}
                       </h2>
                       {dept.zone && (
@@ -261,7 +267,8 @@ export default function DepartmentCardList({
                       {dept.categories?.map((cat) => (
                         <span
                           key={cat}
-                          className="inline-flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-md border border-purple-200/60"
+                          style={theme.tagStyle}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded-md border"
                         >
                           <Tag className="w-2.5 h-2.5" />
                           {formatSnakeCase(cat)}
@@ -284,8 +291,8 @@ export default function DepartmentCardList({
                       {stats.fixed} Fixed
                     </div>
                   </div>
-                  <div className="p-2 text-gray-400 group-hover:text-purple-600 rounded-lg transition">
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition" />
+                  <div className="p-2 text-gray-400 rounded-lg transition">
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-0.5 transition" />
                   </div>
                 </div>
               </div>

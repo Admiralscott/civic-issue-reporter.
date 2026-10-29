@@ -1,4 +1,5 @@
 import type { Department, Report, ReportCategory, ReportStatus } from '@/lib/types'
+import type React from 'react'
 
 export const CONFIGURED_DEPARTMENTS: Department[] = [
   {
@@ -96,5 +97,139 @@ export function calculateDepartmentStats(dept: Department, reports: (Report & { 
     active: deptReports.filter((r) => r.status === 'in_progress' || r.status === 'acknowledged' || r.status === 'reopened').length,
     fixed: deptReports.filter((r) => r.status === 'resolved' || r.status === 'closed').length,
     total: deptReports.length,
+  }
+}
+
+export interface DepartmentTheme {
+  name: string
+  color: string
+  colorDark: string
+  bgLight: string
+  borderLight: string
+  cardStyle: React.CSSProperties
+  iconStyle: React.CSSProperties
+  tagStyle: React.CSSProperties
+}
+
+/**
+ * Maps municipal department identity to the executive dashboard palette:
+ * - Water & Utilities: Sky Blue (#3498db)
+ * - Public Safety: Vibrant Orange (#ff851b)
+ * - Sanitation: Olive/Fresh Green (#8bc34a)
+ * - Road & Infra: Copper/Rust (#d35400)
+ */
+export function getDepartmentTheme(deptIdentifier?: string | null): DepartmentTheme {
+  const key = (deptIdentifier || '').toLowerCase()
+
+  // 1. Water & Utilities (Sky Blue: #3498db)
+  if (
+    key.includes('water') ||
+    key.includes('util') ||
+    key.includes('leak') ||
+    key === 'a11349e6-75f9-4787-9805-529bcd3a65ab' ||
+    key === 'dept-water' ||
+    key === 'dept-electrical'
+  ) {
+    const color = '#3498db'
+    const colorDark = '#21618c'
+    const bgLight = '#ebf5fb'
+    const borderLight = '#aed6f1'
+    return {
+      name: 'Water & Utilities',
+      color,
+      colorDark,
+      bgLight,
+      borderLight,
+      cardStyle: { borderLeft: `6px solid ${color}` },
+      iconStyle: { backgroundColor: color, color: '#ffffff' },
+      tagStyle: { backgroundColor: bgLight, color: colorDark, borderColor: borderLight },
+    }
+  }
+
+  // 2. Public Safety (Vibrant Orange: #ff851b)
+  if (
+    key.includes('safety') ||
+    key.includes('public') ||
+    key.includes('control') ||
+    key === '486112af-ac9a-4e20-b9dc-6f77e6dac235' ||
+    key === 'dept-control'
+  ) {
+    const color = '#ff851b'
+    const colorDark = '#b34700'
+    const bgLight = '#fff4e6'
+    const borderLight = '#ffd8a8'
+    return {
+      name: 'Public Safety',
+      color,
+      colorDark,
+      bgLight,
+      borderLight,
+      cardStyle: { borderLeft: `6px solid ${color}` },
+      iconStyle: { backgroundColor: color, color: '#ffffff' },
+      tagStyle: { backgroundColor: bgLight, color: colorDark, borderColor: borderLight },
+    }
+  }
+
+  // 3. Sanitation (Olive/Green: #8bc34a)
+  if (
+    key.includes('sanit') ||
+    key.includes('garbage') ||
+    key.includes('clean') ||
+    key === '4c021fbc-a68c-4fe0-be25-22453f443d90' ||
+    key === 'dept-sanitation'
+  ) {
+    const color = '#8bc34a'
+    const colorDark = '#33691e'
+    const bgLight = '#f1f8e9'
+    const borderLight = '#c5e1a5'
+    return {
+      name: 'Sanitation',
+      color,
+      colorDark,
+      bgLight,
+      borderLight,
+      cardStyle: { borderLeft: `6px solid ${color}` },
+      iconStyle: { backgroundColor: color, color: '#ffffff' },
+      tagStyle: { backgroundColor: bgLight, color: colorDark, borderColor: borderLight },
+    }
+  }
+
+  // 4. Road & Infra (Copper / Rust: #d35400)
+  if (
+    key.includes('road') ||
+    key.includes('infra') ||
+    key === 'a0241d48-0fe8-4e3f-aceb-16a65dea7d9b' ||
+    key === 'dept-roads'
+  ) {
+    const color = '#d35400'
+    const colorDark = '#78281f'
+    const bgLight = '#fbeee6'
+    const borderLight = '#edbb99'
+    return {
+      name: 'Road & Infra',
+      color,
+      colorDark,
+      bgLight,
+      borderLight,
+      cardStyle: { borderLeft: `6px solid ${color}` },
+      iconStyle: { backgroundColor: color, color: '#ffffff' },
+      tagStyle: { backgroundColor: bgLight, color: colorDark, borderColor: borderLight },
+    }
+  }
+
+  // Fallback (Purple)
+  const color = '#9333ea'
+  const colorDark = '#581c87'
+  const bgLight = '#faf5ff'
+  const borderLight = '#e9d5ff'
+  return {
+    name: 'General Municipal',
+    color,
+    colorDark,
+    bgLight,
+    borderLight,
+    cardStyle: { borderLeft: `6px solid ${color}` },
+    iconStyle: { backgroundColor: color, color: '#ffffff' },
+    tagStyle: { backgroundColor: bgLight, color: colorDark, borderColor: borderLight },
   }
 }

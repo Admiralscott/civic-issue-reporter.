@@ -5,6 +5,7 @@ import type { Department, Report, StatusHistory } from '@/lib/types'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { formatDistanceToNow, format } from '@/lib/utils/date'
 import { CATEGORY_EMOJI, formatSnakeCase } from '@/lib/utils/constants'
+import { getDepartmentTheme } from '@/lib/utils/department-helpers'
 import {
   Building2,
   ChevronRight,
@@ -70,20 +71,25 @@ export default function DepartmentManager({
           const resolvedCount = reports.filter(
             (r) => r.status === 'resolved' || r.status === 'closed'
           ).length
+          const theme = getDepartmentTheme(dept.name || dept.id)
 
           return (
             <div
               key={dept.id}
+              style={theme.cardStyle}
               className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm transition"
             >
               {/* Department Header */}
               <div
                 onClick={() => toggleDept(dept.id)}
-                className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-purple-50/40 transition border-b border-gray-100"
+                className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-gray-50/70 transition border-b border-gray-100"
               >
                 <div className="flex items-start gap-3">
-                  <div className="p-3 bg-purple-100 text-purple-700 rounded-xl mt-0.5">
-                    <Building2 className="w-6 h-6" />
+                  <div
+                    style={theme.iconStyle}
+                    className="p-3 rounded-xl mt-0.5 shadow-xs flex items-center justify-center"
+                  >
+                    <Building2 className="w-6 h-6 text-white" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
@@ -101,7 +107,8 @@ export default function DepartmentManager({
                       {dept.categories?.map((cat) => (
                         <span
                           key={cat}
-                          className="inline-flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-200/60"
+                          style={theme.tagStyle}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border"
                         >
                           <Tag className="w-2.5 h-2.5" />
                           {formatSnakeCase(cat)}
@@ -124,8 +131,8 @@ export default function DepartmentManager({
                       {resolvedCount} Fixed
                     </div>
                   </div>
-                  <div className="p-2 text-gray-400 hover:text-purple-600 rounded-lg">
-                    <ChevronRight className={`w-5 h-5 transition-transform duration-200 ${isDeptExpanded ? 'rotate-90 text-purple-600' : 'text-gray-400'}`} />
+                  <div className="p-2 text-gray-400 rounded-lg">
+                    <ChevronRight className={`w-5 h-5 transition-transform duration-200 ${isDeptExpanded ? 'rotate-90 text-gray-700' : 'text-gray-400'}`} />
                   </div>
                 </div>
               </div>
@@ -135,7 +142,7 @@ export default function DepartmentManager({
                 <div className="p-5 bg-gray-50/50 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-purple-600" />
+                      <FileText className="w-4 h-4 text-gray-600" />
                       Assigned Reports ({reports.length})
                     </h3>
                     {dept.email && (
@@ -158,12 +165,12 @@ export default function DepartmentManager({
                         return (
                           <div
                             key={report.id}
-                            className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs hover:border-purple-300 transition"
+                            className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs hover:border-gray-300 transition"
                           >
                             {/* Report Header Row */}
                             <div
                               onClick={() => toggleReport(report.id)}
-                              className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-purple-50/20"
+                              className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-gray-50/70"
                             >
                               <div className="flex items-start gap-3">
                                 <span className="text-xl mt-0.5 flex-shrink-0">
@@ -185,21 +192,21 @@ export default function DepartmentManager({
 
                               <div className="flex items-center gap-4 text-xs text-gray-400">
                                 <div className="flex items-center gap-1 text-gray-600">
-                                  <TrendingUp className="w-3 h-3 text-purple-600" />
+                                  <TrendingUp className="w-3 h-3 text-gray-500" />
                                   Score: {Math.round(report.priority_score)}
                                 </div>
                                 <span suppressHydrationWarning>
                                   {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
                                 </span>
                                 <div className="p-1 text-gray-400">
-                                  <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isReportExpanded ? 'rotate-90 text-purple-600' : 'text-gray-400'}`} />
+                                  <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isReportExpanded ? 'rotate-90 text-gray-700' : 'text-gray-400'}`} />
                                 </div>
                               </div>
                             </div>
 
                             {/* Report Detail & Activity Log (Accordion) */}
                             {isReportExpanded && (
-                              <div className="p-4 bg-purple-50/20 border-t border-gray-100 space-y-4">
+                              <div className="p-4 bg-gray-50/60 border-t border-gray-100 space-y-4">
                                 {report.description && (
                                   <p className="text-xs text-gray-700 bg-white p-3 rounded-lg border border-gray-200">
                                     <strong>Description:</strong> {report.description}
@@ -236,24 +243,24 @@ export default function DepartmentManager({
                                 {/* Activity Log Timeline */}
                                 <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
                                   <h5 className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5 text-purple-600" />
+                                    <Clock className="w-3.5 h-3.5 text-gray-600" />
                                     Department Activity Log ({history.length} events)
                                   </h5>
 
                                   {history.length === 0 ? (
                                     <p className="text-xs text-gray-400 italic">No field activity logged yet.</p>
                                   ) : (
-                                    <div className="space-y-3 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-purple-200">
+                                    <div className="space-y-3 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
                                       {history.map((entry) => (
                                         <div key={entry.id} className="flex items-start gap-3 relative pl-6">
-                                          <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[9px] font-bold">
+                                          <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-gray-600 text-white flex items-center justify-center text-[9px] font-bold">
                                             ✓
                                           </div>
                                           <div className="flex-1 bg-gray-50 p-2.5 rounded-lg border border-gray-200 text-xs">
                                             <div className="flex items-center justify-between font-semibold text-gray-800">
                                               <span>
                                                 Status changed to{' '}
-                                                <span className="text-purple-700 capitalize">
+                                                <span className="text-gray-900 font-bold capitalize">
                                                   {formatSnakeCase(entry.new_status)}
                                                 </span>
                                               </span>

@@ -8,7 +8,7 @@ import type { Department, Report } from '@/lib/types'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { formatDistanceToNow } from '@/lib/utils/date'
 import { CATEGORY_EMOJI, formatSnakeCase } from '@/lib/utils/constants'
-import { isReportInDepartment } from '@/lib/utils/department-helpers'
+import { isReportInDepartment, getDepartmentTheme } from '@/lib/utils/department-helpers'
 import {
   Building2,
   ChevronRight,
@@ -144,6 +144,8 @@ export default function DepartmentIssueQueue({
     },
   ]
 
+  const deptTheme = getDepartmentTheme(department?.name || department?.id)
+
   return (
     <div className="space-y-6">
       {/* Back button and navigation breadcrumb */}
@@ -167,20 +169,20 @@ export default function DepartmentIssueQueue({
       </div>
 
       {/* Department Banner / Header */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+      <div
+        style={isUnassigned ? { borderLeft: '6px solid #f59e0b' } : deptTheme.cardStyle}
+        className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm"
+      >
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-start gap-4">
             <div
-              className={`p-3.5 rounded-2xl ${
-                isUnassigned
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-purple-100 text-purple-700'
-              }`}
+              style={isUnassigned ? { backgroundColor: '#fef3c7', color: '#92400e' } : deptTheme.iconStyle}
+              className="p-3.5 rounded-2xl shadow-xs flex items-center justify-center"
             >
               {isUnassigned ? (
-                <HelpCircle className="w-7 h-7" />
+                <HelpCircle className="w-7 h-7 text-amber-800" />
               ) : (
-                <Building2 className="w-7 h-7" />
+                <Building2 className="w-7 h-7 text-white" />
               )}
             </div>
             <div>
@@ -211,7 +213,8 @@ export default function DepartmentIssueQueue({
                   {department.categories.map((cat) => (
                     <span
                       key={cat}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-md border border-purple-200/60"
+                      style={deptTheme.tagStyle}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded-md border"
                     >
                       <Tag className="w-2.5 h-2.5" />
                       {formatSnakeCase(cat)}
