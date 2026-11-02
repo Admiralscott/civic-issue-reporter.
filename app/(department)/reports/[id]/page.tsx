@@ -151,9 +151,6 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
             <img
               src={(r as any).resolution_photo_url}
               alt="Proof of Resolution"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none'
-              }}
               className="w-32 h-32 object-cover rounded-lg border border-green-300 shadow-xs"
             />
           </div>
