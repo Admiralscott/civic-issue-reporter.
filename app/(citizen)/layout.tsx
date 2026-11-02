@@ -3,14 +3,14 @@ import Navigation from '@/components/shared/Navigation'
 export default function CitizenLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen relative bg-[#F3F4F6] antialiased">
-      {/* Lightly Blurred Citizen Crowd Background with High-Contrast Overlay */}
+      {/* Lightly Blurred Citizen Crowd Background - Clearly & Elegantly Visible */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <img
           src="/citizen-bg.png"
           alt="Citizen portal background"
-          className="w-full h-full object-cover scale-105 filter blur-[2px] opacity-40 saturate-110 contrast-105"
+          className="w-full h-full object-cover scale-105 filter blur-[1.5px] opacity-60 saturate-110 contrast-105"
         />
-        <div className="absolute inset-0 bg-[#F3F4F6]/75 backdrop-blur-[1px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#F3F4F6]/55 via-[#F3F4F6]/45 to-[#F3F4F6]/60" />
       </div>
 
       {/* Foreground Content */}

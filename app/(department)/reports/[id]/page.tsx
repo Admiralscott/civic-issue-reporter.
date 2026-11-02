@@ -148,7 +148,14 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
             <p className="text-xs font-semibold text-green-800 mb-2 flex items-center gap-1">
               ✓ Verified Proof of Resolution Photo
             </p>
-            <img src={(r as any).resolution_photo_url} alt="Proof of Resolution" className="w-32 h-32 object-cover rounded-lg border border-green-300 shadow-xs" />
+            <img
+              src={(r as any).resolution_photo_url}
+              alt="Proof of Resolution"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+              }}
+              className="w-32 h-32 object-cover rounded-lg border border-green-300 shadow-xs"
+            />
           </div>
         )}
 

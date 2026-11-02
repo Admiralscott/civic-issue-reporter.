@@ -45,9 +45,13 @@ export default function StatusUpdateModal({
         try {
           const supabase = createClient()
           const path = `resolution/${reportId}/${Date.now()}.${resPhoto.name.split('.').pop()}`
-          await supabase.storage.from('report-photos').upload(path, resPhoto)
-          const { data } = supabase.storage.from('report-photos').getPublicUrl(path)
-          resPhotoUrl = data?.publicUrl ?? null
+          const { error: uploadErr } = await supabase.storage.from('report-photos').upload(path, resPhoto)
+          if (!uploadErr) {
+            const { data } = supabase.storage.from('report-photos').getPublicUrl(path)
+            resPhotoUrl = data?.publicUrl ?? null
+          } else {
+            console.warn('[StatusUpdateModal] Resolution photo upload failed:', uploadErr.message)
+          }
         } catch (uploadErr) {
           console.warn('Resolution photo upload failed, continuing with status update:', uploadErr)
         }
@@ -74,7 +78,7 @@ export default function StatusUpdateModal({
         router.refresh()
       }, 600)
     } catch (err: any) {
-      setError(err.message ?? 'Failed to update status')
+      setError(err?.message ?? 'Failed to update status')
     } finally {
       setLoading(false)
     }

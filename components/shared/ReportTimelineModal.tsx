@@ -249,6 +249,9 @@ export default function ReportTimelineModal({ report, onClose }: ReportTimelineM
               <img
                 src={report.resolution_photo_url}
                 alt="Proof of Resolution"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
                 className="w-full max-h-48 object-cover rounded-xl border border-emerald-300 shadow-xs"
               />
             </div>
